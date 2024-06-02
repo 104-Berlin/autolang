@@ -1,4 +1,4 @@
-use nom::{error::ParseError, Err};
+use nom::ErrorConvert;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -58,13 +58,18 @@ impl std::fmt::Debug for Error {
 
 impl std::error::Error for Error {}
 
-impl<I> From<Err<nom::error::Error<I>>> for Error {
-    fn from(err: nom::Err<nom::error::Error<I>>) -> Error {
+impl From<nom::Err<nom::error::Error<&str>>> for Error {
+    fn from(err: nom::Err<nom::error::Error<&str>>) -> Error {
         match err {
-            Err::Error(e) | Err::Failure(e) => {
-                Error::new(ErrorKind::InternalParserError(e.code), "".to_string())
+            nom::Err::Failure(e) => {
+                Error::new(ErrorKind::InternalParserError(e.code), "Failure".into())
             }
-            Err::Incomplete(_) => Error::new(ErrorKind::UnexpectedEndOfInput, "".into()),
+            nom::Err::Error(e) => {
+                Error::new(ErrorKind::InternalParserError(e.code), "Error".into())
+            }
+            nom::Err::Incomplete(_) => {
+                Error::new(ErrorKind::UnexpectedEndOfInput, "Incomplete".into())
+            }
         }
     }
 }
