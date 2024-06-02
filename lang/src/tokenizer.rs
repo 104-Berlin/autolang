@@ -173,7 +173,7 @@ fn tokenize_special_identifier<'a>(
 }
 
 fn tokenize_numbers<'a>() -> impl Parser<&'a str, Token, nom::error::VerboseError<&'a str>> {
-    context("Number", map(integer(), |num| Token::NumberInt(num)))
+    context("Number", map(integer(), Token::NumberInt))
 }
 
 /*fn integer<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
