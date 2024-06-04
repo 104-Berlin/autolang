@@ -1,17 +1,24 @@
 use nom::{
     branch::alt,
     character::complete::char,
-    combinator::map,
+    combinator::{all_consuming, map},
     error::convert_error,
+    multi::fold_many0,
     sequence::{pair, preceded, terminated},
     Parser as NomParser,
 };
 
-use crate::{error::Result, tokenizer};
+use crate::{
+    error::Result,
+    module::{FunctionDefinition, Module},
+    tokenizer,
+};
 
+pub mod binary_expression;
+
+// Something that can yield a value
 pub enum Expr {
     FunctionCall(String),
-    FunctionDef(String),
 }
 
 pub struct Parser<'a> {
@@ -23,8 +30,8 @@ impl<'a> Parser<'a> {
         Self { input }
     }
 
-    pub fn parse(self) -> Result<Expr> {
-        match parse_all().parse(self.input).map(|e| e.1) {
+    pub fn parse(self) -> Result<Module> {
+        match parse_module().parse(self.input).map(|e| e.1) {
             Ok(res) => Ok(res),
             Err(nom::Err::Error(e) | nom::Err::Failure(e)) => Err(
                 crate::error::Error::new_invalid_token(convert_error(self.input, e)),
@@ -36,8 +43,15 @@ impl<'a> Parser<'a> {
     }
 }
 
-fn parse_all<'a>() -> impl nom::Parser<&'a str, Expr, nom::error::VerboseError<&'a str>> {
-    alt((parse_function_call(), parse_function_def()))
+fn parse_module<'a>() -> impl nom::Parser<&'a str, Module, nom::error::VerboseError<&'a str>> {
+    all_consuming(fold_many0(
+        parse_function_def(),
+        || Module::new("Test"),
+        |mut module, expr| {
+            module.add_function(expr);
+            module
+        },
+    ))
 }
 
 fn parse_function_call<'a>() -> impl nom::Parser<&'a str, Expr, nom::error::VerboseError<&'a str>> {
@@ -47,12 +61,15 @@ fn parse_function_call<'a>() -> impl nom::Parser<&'a str, Expr, nom::error::Verb
     )
 }
 
-fn parse_function_def<'a>() -> impl nom::Parser<&'a str, Expr, nom::error::VerboseError<&'a str>> {
+fn parse_function_def<'a>(
+) -> impl nom::Parser<&'a str, FunctionDefinition, nom::error::VerboseError<&'a str>> {
     map(
         preceded(
             tokenizer::keyword_fn(),
             terminated(tokenizer::identifier(), pair(char('('), char(')'))),
         ),
-        |ident| Expr::FunctionDef(ident.to_string()),
+        |ident| FunctionDefinition {
+            name: ident.to_string(),
+        },
     )
 }
