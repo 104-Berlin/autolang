@@ -1,15 +1,18 @@
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1, char, one_of, space1},
+    character::complete::{alpha1, alphanumeric1, char, multispace0, one_of, space1},
     combinator::{map, map_res, opt, recognize},
     error::VerboseError,
     multi::{many0_count, many1},
-    sequence::{pair, terminated, tuple},
+    sequence::{delimited, pair, terminated, tuple},
     Parser,
 };
 
+use crate::parser::binary_expression::BinaryOperator;
+
 /// Literals
+#[derive(Debug, Clone)]
 pub enum Literal {
     /// Number literal
     NumberInt(i64),
@@ -24,10 +27,28 @@ pub enum Literal {
 /// [a-zA-Z_][a-zA-Z0-9_]*
 /// ```
 pub fn identifier<'a>() -> impl Parser<&'a str, &'a str, VerboseError<&'a str>> {
-    recognize(pair(
-        alt((alpha1, tag("_"))),
-        many0_count(alt((alphanumeric1, tag("_")))),
-    ))
+    delimited(
+        multispace0,
+        recognize(pair(
+            alt((alpha1, tag("_"))),
+            many0_count(alt((alphanumeric1, tag("_")))),
+        )),
+        multispace0,
+    )
+}
+
+pub fn binary_operator<'a>(
+) -> impl Parser<&'a str, BinaryOperator, nom::error::VerboseError<&'a str>> {
+    delimited(
+        multispace0,
+        alt((
+            map(char('+'), |_| BinaryOperator::Add),
+            map(char('-'), |_| BinaryOperator::Substract),
+            map(char('*'), |_| BinaryOperator::Multiply),
+            map(char('/'), |_| BinaryOperator::Divide),
+        )),
+        multispace0,
+    )
 }
 
 pub fn keyword_fn<'a>() -> impl Parser<&'a str, &'a str, nom::error::VerboseError<&'a str>> {
@@ -47,7 +68,10 @@ pub fn is_keyword<'a>(
 }
 
 pub fn numbers<'a>() -> impl Parser<&'a str, Literal, nom::error::VerboseError<&'a str>> {
-    map(integer(), Literal::NumberInt)
+    map(
+        delimited(multispace0, integer(), multispace0),
+        Literal::NumberInt,
+    )
 }
 
 fn integer<'a>() -> impl Parser<&'a str, i64, nom::error::VerboseError<&'a str>> {
