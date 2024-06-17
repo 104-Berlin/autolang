@@ -1,20 +1,23 @@
-use expression::{parse_binary_expr, parse_expression, Expr};
+use expression::{parse_expression, Expr};
 use function::FunctionDeclaration;
 use nom::{
-    branch::alt,
     character::complete::char,
     combinator::{all_consuming, map},
-    error::convert_error,
     multi::fold_many0,
     sequence::{pair, preceded, terminated},
-    Parser as NomParser,
 };
+use spans::{InputSpan, NomResult};
 
-use crate::{error::Result, module::Module, tokenizer};
+use crate::{
+    error::{Error, ErrorKind, Result},
+    module::Module,
+    tokenizer,
+};
 
 pub mod binary_expression;
 pub mod expression;
 pub mod function;
+pub mod spans;
 pub mod type_def;
 
 pub struct Parser<'a> {
@@ -27,59 +30,50 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(self) -> Result<Module> {
-        match parse_module().parse(self.input).map(|e| e.1) {
+        let input = InputSpan::new(self.input);
+        match parse_module(input).map(|e| e.1) {
             Ok(res) => Ok(res),
-            Err(nom::Err::Error(e) | nom::Err::Failure(e)) => Err(
-                crate::error::Error::new_invalid_token(convert_error(self.input, e)),
-            ),
-            Err(nom::Err::Incomplete(_)) => Err(crate::error::Error::new_unexpected_end_of_input(
-                "Unexpected end of input".to_string(),
-            )),
+            Err(nom::Err::Error(e) | nom::Err::Failure(e)) => Err(e),
+            Err(nom::Err::Incomplete(_)) => Err(Error::new(input, ErrorKind::UnexpectedEOF)),
         }
     }
 
     pub fn parse_expression(self) -> Result<Expr> {
-        match parse_expression.parse(self.input).map(|e| e.1) {
+        let input = InputSpan::new(self.input);
+        match parse_expression(input).map(|e| e.1) {
             Ok(res) => Ok(res),
-            Err(nom::Err::Error(e) | nom::Err::Failure(e)) => Err(
-                crate::error::Error::new_invalid_token(convert_error(self.input, e)),
-            ),
-            Err(nom::Err::Incomplete(_)) => Err(crate::error::Error::new_unexpected_end_of_input(
-                "Unexpected end of input".to_string(),
-            )),
+            Err(nom::Err::Error(e) | nom::Err::Failure(e)) => Err(e),
+            Err(nom::Err::Incomplete(_)) => Err(Error::new(input, ErrorKind::UnexpectedEOF)),
         }
     }
 }
 
-pub(self) fn parse_module<'a>(
-) -> impl nom::Parser<&'a str, Module, nom::error::VerboseError<&'a str>> {
+pub(self) fn parse_module<'a>(input: InputSpan) -> NomResult<Module> {
     all_consuming(fold_many0(
-        parse_function_def(),
+        parse_function_def,
         || Module::new("Test"),
         |mut module, expr| {
             module.add_function(expr);
             module
         },
-    ))
+    ))(input)
 }
 
-pub(self) fn parse_function_call<'a>(
-) -> impl nom::Parser<&'a str, Expr, nom::error::VerboseError<&'a str>> {
+pub(self) fn parse_function_call<'a>(input: InputSpan) -> NomResult<Expr> {
     map(
-        terminated(tokenizer::identifier(), pair(char('('), char(')'))),
+        terminated(tokenizer::identifier, pair(char('('), char(')'))),
         |ident| Expr::FunctionCall(ident.to_string()),
-    )
+    )(input)
 }
 
-fn parse_function_def<'a>(
-) -> impl nom::Parser<&'a str, FunctionDeclaration, nom::error::VerboseError<&'a str>> {
+fn parse_function_def<'a>(input: InputSpan) -> NomResult<'_, FunctionDeclaration> {
     map(
         preceded(
-            tokenizer::keyword_fn(),
-            terminated(tokenizer::identifier(), pair(char('('), char(')'))),
+            tokenizer::keyword_fn,
+            terminated(tokenizer::identifier, pair(char('('), char(')'))),
         ),
         |ident| FunctionDeclaration {
             name: ident.to_string(),
         },
-    )
+    )(input)
 }

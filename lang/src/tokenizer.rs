@@ -8,8 +8,12 @@ use nom::{
     sequence::{delimited, pair, terminated, tuple},
     Parser,
 };
+use nom_locate::LocatedSpan;
 
-use crate::parser::binary_expression::BinaryOperator;
+use crate::parser::{
+    binary_expression::BinaryOperator,
+    spans::{InputSpan, NomResult, Spanned},
+};
 
 /// Literals
 #[derive(Debug, Clone)]
@@ -26,60 +30,49 @@ pub enum Literal {
 /// ```regex
 /// [a-zA-Z_][a-zA-Z0-9_]*
 /// ```
-pub fn identifier<'a>() -> impl Parser<&'a str, &'a str, VerboseError<&'a str>> {
-    delimited(
-        multispace0,
-        recognize(pair(
-            alt((alpha1, tag("_"))),
-            many0_count(alt((alphanumeric1, tag("_")))),
-        )),
-        multispace0,
-    )
+pub fn identifier<'a>(input: InputSpan<'_>) -> NomResult<InputSpan<'_>> {
+    recognize(pair(
+        alt((alpha1, tag("_"))),
+        many0_count(alt((alphanumeric1, tag("_")))),
+    ))(input)
 }
 
-pub fn binary_operator<'a>(
-) -> impl Parser<&'a str, BinaryOperator, nom::error::VerboseError<&'a str>> {
-    delimited(
-        multispace0,
-        alt((
-            map(char('+'), |_| BinaryOperator::Add),
-            map(char('-'), |_| BinaryOperator::Substract),
-            map(char('*'), |_| BinaryOperator::Multiply),
-            map(char('/'), |_| BinaryOperator::Divide),
-        )),
-        multispace0,
-    )
+pub fn binary_operator<'a>(input: InputSpan<'a>) -> NomResult<BinaryOperator> {
+    alt((
+        map(char('+'), |_| BinaryOperator::Add),
+        map(char('-'), |_| BinaryOperator::Substract),
+        map(char('*'), |_| BinaryOperator::Multiply),
+        map(char('/'), |_| BinaryOperator::Divide),
+    ))(input)
 }
 
-pub fn keyword_fn<'a>() -> impl Parser<&'a str, &'a str, nom::error::VerboseError<&'a str>> {
-    is_keyword("fn")
+pub fn keyword_fn(input: InputSpan) -> NomResult<InputSpan> {
+    keyword("fn")(input)
 }
 
-pub fn keyword_let<'a>() -> impl Parser<&'a str, &'a str, nom::error::VerboseError<&'a str>> {
-    is_keyword("let")
+pub fn keyword_let(input: InputSpan) -> NomResult<InputSpan> {
+    keyword("let")(input)
 }
 
 /// Keywords need to have a space after
 /// Use is_operator if you don't need a space after
-pub fn is_keyword<'a>(
-    keyword: &'a str,
-) -> impl Parser<&'a str, &'a str, nom::error::VerboseError<&'a str>> {
-    terminated(tag(keyword), space1)
+pub fn keyword(keyword: &str) -> impl FnMut(InputSpan) -> NomResult<'_, InputSpan> + '_ {
+    move |input: InputSpan| terminated(tag(keyword), space1)(input)
 }
 
-pub fn numbers<'a>() -> impl Parser<&'a str, Literal, nom::error::VerboseError<&'a str>> {
+pub fn numbers<'a>(input: InputSpan) -> NomResult<Literal> {
     map(
-        delimited(multispace0, integer(), multispace0),
+        delimited(multispace0, integer, multispace0),
         Literal::NumberInt,
-    )
+    )(input)
 }
 
-fn integer<'a>() -> impl Parser<&'a str, i64, nom::error::VerboseError<&'a str>> {
+fn integer(input: InputSpan) -> NomResult<'_, i64> {
     map_res(
         tuple((opt(char('-')), recognize(many1(one_of("0123456789"))))),
-        |(sign, digits): (Option<char>, &str)| {
+        |(sign, digits): (Option<char>, InputSpan)| {
             let sign = if sign.is_some() { -1 } else { 1 };
             digits.parse::<i64>().map(|n| sign * n)
         },
-    )
+    )(input)
 }

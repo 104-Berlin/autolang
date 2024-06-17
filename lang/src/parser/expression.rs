@@ -1,10 +1,14 @@
 use std::fmt::Display;
 
-use nom::{branch::alt, combinator::{map, peek}, error::ErrorKind, sequence::tuple, IResult, Parser};
+use nom::{branch::alt, combinator::map, multi::many0, sequence::tuple, Parser};
 
 use crate::tokenizer::{self, Literal};
 
-use super::{binary_expression::BinaryExpression, parse_function_call};
+use super::{
+    binary_expression::BinaryExpression,
+    parse_function_call,
+    spans::{InputSpan, NomResult},
+};
 
 // Something that can yield a value
 #[derive(Debug, Clone)]
@@ -16,50 +20,29 @@ pub enum Expr {
     Variable(String),
 }
 
-pub struct ExpressionParser;
-
-impl ExpressionParser {
-    fn parse<'a>(
-        &mut self,
-        input: &'a str,
-    ) -> IResult<&'a str, Expr, nom::error::VerboseError<&'a str>> {
-        parse_expression(input)
-    }
+pub fn parse_expression(input: InputSpan) -> NomResult<'_, Expr> {
+    alt((parse_binary_expr, parse_primary_expr))(input)
 }
 
-pub fn parse_expression(input: &str) -> IResult<&str, Expr, nom::error::VerboseError<&str>> {
-    let (input, primary_expr) = parse_primary_expr(input)?;
-    if peek(tokenizer::binary_operator())(input).is_err() {
-        return Ok((input, primary_expr));
-    }
-    parse_binary_expr(0, primary_expr).parse(input)
-}
-
-pub fn parse_primary_expr(input: &str) -> IResult<&str, Expr, nom::error::VerboseError<&str>> {
+pub fn parse_primary_expr(input: InputSpan) -> NomResult<'_, Expr> {
     alt((
-        map(tokenizer::numbers(), Expr::Literal),
-        map(tokenizer::identifier(), |name| {
+        map(tokenizer::numbers, Expr::Literal),
+        map(tokenizer::identifier, |name| {
             Expr::Variable(name.to_string())
         }),
-        parse_function_call(),
-    ))
-    .parse(input)
+        parse_function_call,
+    ))(input)
 }
 
-pub fn parse_binary_expr<'a>(last_precedence: i16, mut lhs: Expr) -> impl FnMut(&str) -> IResult<&str, Expr, nom::error::VerboseError<&str>> {
-    move |mut input| {
-        let (input, operator) = tokenizer::binary_operator().parse(input)?;
-        let precedence = operator.precedence();
-        if precedence > last_precedence {
-            return Ok((input, lhs.clone()));
-        }
-        let (input, rhs) = parse_expression(input)?;
-    
-        Ok((
-            input,
-            Expr::Binary(BinaryExpression::new(lhs.clone(), operator, rhs)),
-        ))
-    }
+pub fn parse_binary_expr<'a>(input: InputSpan) -> NomResult<'_, Expr> {
+    let mut binary_parser = tuple((
+        parse_primary_expr,
+        many0(tuple((tokenizer::binary_operator, parse_primary_expr))),
+    ));
+
+    let (input, (first, rest)) = binary_parser.parse(input)?;
+    //let folded = fold_binary_expr(first, rest).map_err()?;
+    Ok((input, first))
 }
 
 impl Display for Expr {
