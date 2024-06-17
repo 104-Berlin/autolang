@@ -1,6 +1,6 @@
 use std::num::ParseIntError;
 
-use nom::error::{ContextError, FromExternalError, ParseError, VerboseError};
+use nom::error::{ContextError, FromExternalError, ParseError};
 
 use crate::parser::spans::{InputSpan, LocatedSpan, Location};
 

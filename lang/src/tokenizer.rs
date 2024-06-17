@@ -3,16 +3,13 @@ use nom::{
     bytes::complete::tag,
     character::complete::{alpha1, alphanumeric1, char, multispace0, one_of, space1},
     combinator::{map, map_res, opt, recognize},
-    error::VerboseError,
     multi::{many0_count, many1},
     sequence::{delimited, pair, terminated, tuple},
-    Parser,
 };
-use nom_locate::LocatedSpan;
 
 use crate::parser::{
     binary_expression::BinaryOperator,
-    spans::{InputSpan, NomResult, Spanned},
+    spans::{InputSpan, NomResult},
 };
 
 /// Literals
