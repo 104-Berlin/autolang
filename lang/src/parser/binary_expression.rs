@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use super::Expr;
+use super::{expression::SpannedExpr, spans::Spanned, Expr};
 
 #[derive(Debug, Clone)]
 pub enum BinaryOperator {
@@ -11,22 +11,25 @@ pub enum BinaryOperator {
 }
 
 #[derive(Debug, Clone)]
-pub struct BinaryExpression {
-    pub left: Box<Expr>,
-    pub operator: BinaryOperator,
-    pub right: Box<Expr>,
+pub struct BinaryExpression<'a> {
+    pub lhs: Box<SpannedExpr<'a>>,
+    pub op: Spanned<'a, BinaryOperator>,
+    pub rhs: Box<SpannedExpr<'a>>,
 }
 
-impl BinaryExpression {
-    pub fn new(left: Expr, operator: BinaryOperator, right: Expr) -> Self {
+impl<'a> BinaryExpression<'a> {
+    pub fn new(
+        lhs: SpannedExpr<'a>,
+        op: Spanned<'a, BinaryOperator>,
+        rhs: SpannedExpr<'a>,
+    ) -> Self {
         Self {
-            left: Box::new(left),
-            operator,
-            right: Box::new(right),
+            lhs: Box::new(lhs),
+            op,
+            rhs: Box::new(rhs),
         }
     }
 }
-
 
 impl BinaryOperator {
     pub fn precedence(&self) -> i16 {

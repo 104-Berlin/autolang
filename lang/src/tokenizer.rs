@@ -1,15 +1,15 @@
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1, char, multispace0, one_of, space1},
+    character::complete::{alpha1, alphanumeric1, char, one_of, space1},
     combinator::{map, map_res, opt, recognize},
     multi::{many0_count, many1},
-    sequence::{delimited, pair, terminated, tuple},
+    sequence::{pair, terminated, tuple},
 };
 
 use crate::parser::{
     binary_expression::BinaryOperator,
-    spans::{InputSpan, NomResult},
+    spans::{with_span, InputSpan, NomResult, Spanned},
 };
 
 /// Literals
@@ -34,13 +34,13 @@ pub fn identifier<'a>(input: InputSpan<'_>) -> NomResult<InputSpan<'_>> {
     ))(input)
 }
 
-pub fn binary_operator<'a>(input: InputSpan<'a>) -> NomResult<BinaryOperator> {
-    alt((
+pub fn binary_operator<'a>(input: InputSpan<'a>) -> NomResult<Spanned<BinaryOperator>> {
+    with_span(alt((
         map(char('+'), |_| BinaryOperator::Add),
         map(char('-'), |_| BinaryOperator::Substract),
         map(char('*'), |_| BinaryOperator::Multiply),
         map(char('/'), |_| BinaryOperator::Divide),
-    ))(input)
+    )))(input)
 }
 
 pub fn keyword_fn(input: InputSpan) -> NomResult<InputSpan> {
@@ -58,10 +58,7 @@ pub fn keyword(keyword: &str) -> impl FnMut(InputSpan) -> NomResult<'_, InputSpa
 }
 
 pub fn numbers<'a>(input: InputSpan) -> NomResult<Literal> {
-    map(
-        delimited(multispace0, integer, multispace0),
-        Literal::NumberInt,
-    )(input)
+    map(integer, Literal::NumberInt)(input)
 }
 
 fn integer(input: InputSpan) -> NomResult<'_, i64> {
