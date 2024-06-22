@@ -13,6 +13,10 @@ impl Module {
         }
     }
 
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn add_function(&mut self, func: FunctionDeclaration) {
         self.functions.push(func);
     }

@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use super::{expression::SpannedExpr, spans::Spanned, Expr};
+use super::{expression::SpannedExpr, spans::Spanned};
 
 #[derive(Debug, Clone)]
 pub enum BinaryOperator {
