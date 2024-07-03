@@ -1,13 +1,8 @@
-use lang::parser::{parse_expression, spans::InputSpan};
+use lang::parser::Parser;
 
 fn main() {
-    let input = "1 * 2 + 3 + 4 * 5 - funccall()";
-    match parse_expression(InputSpan::new(input)) {
-        Ok(module) => println!("{}", module),
-        Err(e) => {
-            let code = &input
-                [e.span().location_offset()..e.span().location_offset() + *e.span().fragment()];
-            println!("Error parsing Expression: {}\n{}", e, code)
-        }
-    }
+    let mut parser = Parser::new("32 + 123 * 43 - hello * 32 + 3");
+
+    let tree = parser.parse();
+    println!("{}", tree)
 }
