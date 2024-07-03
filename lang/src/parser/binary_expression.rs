@@ -2,7 +2,10 @@ use std::fmt::Display;
 
 use crate::{
     error::{Error, ErrorKind},
-    tokenizer::{Identifier, Token, TokenKind},
+    tokenizer::{
+        identifier::Identifier,
+        token::{Token, TokenKind},
+    },
 };
 
 use super::expression::Expr;

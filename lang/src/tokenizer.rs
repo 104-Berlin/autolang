@@ -1,143 +1,15 @@
 use std::{fmt::Display, iter::Peekable};
 
+use identifier::Identifier;
+use literal::Literal;
 use source_span::{DefaultMetrics, Span};
+use token::{Token, TokenKind};
 
 use crate::input_stream::InputStream;
 
-/// Literals
-#[derive(Debug, Clone, PartialEq)]
-pub enum Literal {
-    /// Number literal
-    NumberInt(i64),
-    NumberFloat(f64),
-    // String
-    // String(String),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Identifier {
-    /// User defined identifier (aka. variable names, function names, types, etc.)
-    UserDefined(String),
-
-    /// '('
-    LParen,
-    /// ')'
-    RParen,
-    /// '{'
-    LBrace,
-    /// '}'
-    RBrace,
-    /// '['
-    LBracket,
-    /// ']'
-    RBracket,
-
-    /// ':'
-    Colon,
-    /// ';'
-    Semicolon,
-    /// '.'
-    Dot,
-    /// ','
-    Comma,
-
-    /// '+'
-    Plus,
-    /// '-'
-    Minus,
-    /// '*'
-    Star,
-    /// '/'
-    Slash,
-    /// '%'
-    Modulus,
-
-    /// '='
-    Assignment,
-    /// '=='
-    Equals,
-    /// '!='
-    NotEquals,
-    /// '>'
-    GreaterThan,
-    /// '>='
-    GreaterThanOrEqual,
-    /// '<'
-    LessThan,
-    /// '<='
-    LessThanOrEqual,
-
-    /// '&&'
-    LogicalAnd,
-    /// '||'
-    LogicalOr,
-    /// '!'
-    LogicalNot,
-
-    /// Built-in function
-    /// 'fn'
-    Function,
-    /// Built-in keywords
-    /// 'let'
-    Let,
-    /// 'true'
-    True,
-    /// 'false'
-    False,
-
-    /// Control flow
-    /// 'if'
-    If,
-    /// 'else'
-    Else,
-    /// 'while'
-    While,
-    /// 'return'
-    Return,
-    /// 'break'
-    Break,
-    /// 'continue'
-    Continue,
-}
-
-impl Identifier {
-    fn from_string(s: String) -> Self {
-        match s.as_str() {
-            "fn" => Self::Function,
-            "let" => Self::Let,
-            "true" => Self::True,
-            "false" => Self::False,
-            "if" => Self::If,
-            "else" => Self::Else,
-            "while" => Self::While,
-            "return" => Self::Return,
-            "break" => Self::Break,
-            "continue" => Self::Continue,
-            _ => Self::UserDefined(s),
-        }
-    }
-}
-
-/// Tokens
-#[derive(Debug, Clone, PartialEq)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub span: Span,
-}
-
-impl Token {
-    pub fn new(kind: TokenKind, span: Span) -> Self {
-        Self { kind, span }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TokenKind {
-    /// Identifier
-    Identifier(Identifier),
-    /// Literal
-    Literal(Literal),
-}
+pub mod identifier;
+pub mod literal;
+pub mod token;
 
 pub struct Tokenizer {
     input: Box<dyn InputStream<Output = char>>,
@@ -160,9 +32,7 @@ impl Tokenizer {
             self.span.push(c, &Self::METRICS);
         }
 
-        let Some(current_char) = self.input.next() else {
-            return None;
-        };
+        let current_char = self.input.next()?;
 
         self.span = Span::from(self.span.end());
 

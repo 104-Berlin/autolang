@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::tokenizer::Literal;
+use crate::tokenizer::literal::Literal;
 
 use super::binary_expression::BinaryExpression;
 
@@ -25,7 +25,7 @@ impl Expr {
                 0
             }
             Expr::Literal(literal) => match literal {
-                Literal::NumberInt(val) => *val as i64,
+                Literal::NumberInt(val) => *val,
                 Literal::NumberFloat(val) => {
                     println!("Evaluating float to int: {}", val);
                     val.trunc() as i64

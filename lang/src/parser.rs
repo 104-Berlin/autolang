@@ -5,7 +5,11 @@ use source_span::Span;
 use crate::{
     error::{Error, ErrorKind, ParseResult},
     input_stream::InputStream,
-    tokenizer::{Identifier, Token, TokenKind, TokenizerStream},
+    tokenizer::{
+        identifier::Identifier,
+        token::{Token, TokenKind},
+        TokenizerStream,
+    },
 };
 
 pub mod binary_expression;

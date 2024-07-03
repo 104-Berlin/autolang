@@ -1,9 +1,9 @@
 use source_span::{
-    fmt::{Color, Formatter, Style},
+    fmt::{Formatter, Style},
     Span,
 };
 
-use crate::tokenizer::{TokenKind, Tokenizer};
+use crate::tokenizer::{token::TokenKind, Tokenizer};
 
 pub type ParseResult<T> = Result<T, Error>;
 
@@ -52,11 +52,11 @@ impl Error {
         );*/
         let message = format!("{}", self.kind);
 
-        let mut fmt = Formatter::with_margin_color(Color::Blue);
+        let mut fmt = Formatter::new();
         fmt.add(self.span, Some(message), Style::Error);
         let formatted = fmt
             .render(
-                source.chars().map(|c| Ok::<char, ()>(c)),
+                source.chars().map(Ok::<char, ()>),
                 self.span.aligned(),
                 &Tokenizer::METRICS,
             )

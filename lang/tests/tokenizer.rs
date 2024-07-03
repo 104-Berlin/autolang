@@ -1,4 +1,4 @@
-use lang::tokenizer::{Identifier, Literal, TokenKind, Tokenizer};
+use lang::tokenizer::{identifier::Identifier, literal::Literal, token::TokenKind, Tokenizer};
 
 const INPUT_FUNCTION_CALL: &str = "function_call()";
 const INPUT_FUNCTION_CALL_ERR1: &str = "function_call(";
