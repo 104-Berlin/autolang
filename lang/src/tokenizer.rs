@@ -1,210 +1,275 @@
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{alpha1, alphanumeric1, char, one_of, space0, space1},
-    combinator::{all_consuming, map, map_res, opt, recognize},
-    error::{context, convert_error, VerboseError},
-    multi::{many0_count, many1},
-    sequence::{pair, preceded, terminated, tuple},
-    Parser,
-};
+use std::{fmt::Display, iter::Peekable};
 
-use crate::error::Result;
+use identifier::Identifier;
+use literal::Literal;
+use source_span::{DefaultMetrics, Span};
+use token::{Token, TokenKind};
 
-/// Tokens of the language
-#[derive(Debug, PartialEq)]
-pub enum Token {
-    /// Number literal
-    NumberInt(i64),
-    NumberFloat(f64),
+use crate::input_stream::InputStream;
 
-    /// '+'
-    Plus,
-    /// '-'
-    Minus,
-    /// '*'
-    Star,
-    /// '/'
-    Slash,
+pub mod identifier;
+pub mod literal;
+pub mod token;
 
-    /// '('
-    LParen,
-    /// ')'
-    RParen,
-    /// '{'
-    LBrace,
-    /// '}'
-    RBrace,
-    /// '['
-    LBracket,
-    /// ']'
-    RBracket,
-    /// '='
-    Assign,
-
-    /// Identifier
-    /// ### Regex
-    /// ```regex
-    /// [a-zA-Z_][a-zA-Z0-9_]*
-    /// ```
-    Identifier(String),
-
-    /// Special identifier
-
-    /// "fn"
-    Fn,
-    /// "let"
-    Let,
+pub struct Tokenizer {
+    input: Box<dyn InputStream<Output = char>>,
+    span: Span,
 }
 
-pub struct Tokenizer<'a> {
-    input: &'a str,
-}
+impl Tokenizer {
+    pub const METRICS: source_span::DefaultMetrics = DefaultMetrics::new();
 
-impl Tokenizer<'_> {
-    /// Creates a new tokenizer to generate tokens from the input
-    /// # Example
-    /// ```
-    /// use lang::tokenizer::Tokenizer;
-    /// let tokens = Tokenizer::new("some_identifier").tokenize();
-    /// ```
-    pub fn new(input: &str) -> Tokenizer {
-        Tokenizer { input }
+    pub fn new(input: impl InputStream<Output = char> + 'static) -> Self {
+        Self {
+            input: Box::new(input),
+            span: Span::default(),
+        }
     }
 
-    pub fn tokenize(self) -> Result<Vec<Token>> {
-        tracing::info!("Tokenizing input: {:.24}", self.input);
+    pub fn next_token(&mut self) -> Option<Token> {
+        while let Some(c) = self.input.peek().filter(|c| c.is_whitespace()) {
+            self.input.advance();
+            self.span.push(c, &Self::METRICS);
+        }
 
-        let result = tokenize_all::<'_>().parse(self.input);
-        match result {
-            Ok((_, tokens)) => Ok(tokens),
-            Err(nom::Err::Error(e) | nom::Err::Failure(e)) => Err(
-                crate::error::Error::new_invalid_token(convert_error(self.input, e)),
-            ),
-            Err(nom::Err::Incomplete(_)) => Err(crate::error::Error::new_unexpected_end_of_input(
-                "Unexpected end of input".to_string(),
+        let current_char = self.input.next()?;
+
+        self.span = Span::from(self.span.end());
+
+        self.span.push(current_char, &Self::METRICS);
+
+        match current_char {
+            '(' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LParen),
+                self.span,
             )),
+            ')' => Some(Token::new(
+                TokenKind::Identifier(Identifier::RParen),
+                self.span,
+            )),
+            '{' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LBrace),
+                self.span,
+            )),
+            '}' => Some(Token::new(
+                TokenKind::Identifier(Identifier::RBrace),
+                self.span,
+            )),
+            '[' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LBracket),
+                self.span,
+            )),
+            ']' => Some(Token::new(
+                TokenKind::Identifier(Identifier::RBracket),
+                self.span,
+            )),
+            ':' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Colon),
+                self.span,
+            )),
+            ';' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Semicolon),
+                self.span,
+            )),
+            '.' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Dot),
+                self.span,
+            )),
+            ',' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Comma),
+                self.span,
+            )),
+            '+' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Plus),
+                self.span,
+            )),
+            '-' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Minus),
+                self.span,
+            )),
+            '*' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Star),
+                self.span,
+            )),
+            '/' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Slash),
+                self.span,
+            )),
+            '%' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Modulus),
+                self.span,
+            )),
+            '=' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Assignment),
+                self.span,
+            )),
+            '!' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LogicalNot),
+                self.span,
+            )),
+            '&' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LogicalAnd),
+                self.span,
+            )),
+            '|' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LogicalOr),
+                self.span,
+            )),
+            '<' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LessThan),
+                self.span,
+            )),
+            '>' => Some(Token::new(
+                TokenKind::Identifier(Identifier::GreaterThan),
+                self.span,
+            )),
+            c if c.is_numeric() => Some(self.parse_number_literal(current_char)),
+            c if c.is_alphabetic() || c == '_' => Some(self.parse_identifier(current_char)),
+            _ => None,
+        }
+    }
+
+    fn parse_number_literal(&mut self, first_char: char) -> Token {
+        let mut number = String::new();
+        number.push(first_char);
+
+        while let Some(c) = self.input.peek() {
+            if c.is_numeric() || c == '.' {
+                number.push(c);
+                self.span.push(c, &Self::METRICS);
+                self.input.advance();
+            } else {
+                break;
+            }
+        }
+
+        if number.contains('.') {
+            Token::new(
+                TokenKind::Literal(Literal::NumberFloat(number.parse().unwrap())),
+                self.span,
+            )
+        } else {
+            Token::new(
+                TokenKind::Literal(Literal::NumberInt(number.parse().unwrap())),
+                self.span,
+            )
+        }
+    }
+
+    fn parse_identifier(&mut self, first_char: char) -> Token {
+        let mut identifier = String::new();
+        identifier.push(first_char);
+
+        while let Some(c) = self.input.peek() {
+            if c.is_alphanumeric() || c == '_' {
+                identifier.push(c);
+                self.span.push(c, &Self::METRICS);
+                self.input.advance();
+            } else {
+                break;
+            }
+        }
+
+        Token::new(
+            TokenKind::Identifier(Identifier::from_string(identifier)),
+            self.span,
+        )
+    }
+}
+
+impl Iterator for Tokenizer {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next_token()
+    }
+}
+
+pub struct TokenizerStream {
+    tokenizer: Peekable<Tokenizer>,
+}
+
+impl TokenizerStream {
+    pub fn new(input: impl InputStream<Output = char> + 'static) -> Self {
+        Self {
+            tokenizer: Tokenizer::new(input).peekable(),
         }
     }
 }
 
-fn tokenize_all<'a>() -> impl Parser<&'a str, Vec<Token>, nom::error::VerboseError<&'a str>> {
-    preceded(
-        space0,
-        context(
-            "ALL",
-            all_consuming(many1(context(
-                "New Token",
-                terminated(
-                    alt((
-                        tokenize_special_identifier(),
-                        tokenize_tags(),
-                        tokenize_identifier(),
-                        tokenize_numbers(),
-                    )),
-                    space0,
-                ),
-            ))),
-        ),
-    )
+impl InputStream for TokenizerStream {
+    type Output = Token;
+
+    fn next(&mut self) -> Option<Self::Output> {
+        self.tokenizer.next()
+    }
+
+    fn peek(&mut self) -> Option<Self::Output> {
+        self.tokenizer.peek().cloned()
+    }
+
+    fn advance(&mut self) {
+        self.tokenizer.next();
+    }
 }
 
-/// Tokenizes an identifier
-/// ### Regex
-/// ```regex
-/// [a-zA-Z_][a-zA-Z0-9_]*
-/// ```
-fn tokenize_identifier<'a>() -> impl Parser<&'a str, Token, VerboseError<&'a str>> {
-    context(
-        "Identifier",
-        map(
-            recognize(pair(
-                alt((alpha1, tag("_"))),
-                many0_count(alt((alphanumeric1, tag("_")))),
-            )),
-            |s: &str| Token::Identifier(s.to_string()),
-        ),
-    )
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenKind::Identifier(identifier) => write!(f, "{}", identifier),
+            TokenKind::Literal(literal) => write!(f, "{}", literal),
+        }
+    }
 }
 
-/// - '+' -> Token::Plus
-/// - '-' -> Token::Minus
-/// - '*' -> Token::Star
-/// - '/' -> Token::Slash
-/// - '(' -> Token::LParen
-/// - ')' -> Token::RParen
-/// - '{' -> Token::LBrace
-/// - '}' -> Token::RBrace
-/// - '[' -> Token::LBracket
-/// - ']' -> Token::RBracket
-fn tokenize_tags<'a>() -> impl Parser<&'a str, Token, nom::error::VerboseError<&'a str>> {
-    context(
-        "Tags",
-        alt((
-            map(tag("+"), |_| Token::Plus),
-            map(tag("-"), |_| Token::Minus),
-            map(tag("*"), |_| Token::Star),
-            map(tag("/"), |_| Token::Slash),
-            map(tag("("), |_| Token::LParen),
-            map(tag(")"), |_| Token::RParen),
-            map(tag("{"), |_| Token::LBrace),
-            map(tag("}"), |_| Token::RBrace),
-            map(tag("["), |_| Token::LBracket),
-            map(tag("]"), |_| Token::RBracket),
-            map(tag("="), |_| Token::Assign),
-        )),
-    )
+impl Display for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Identifier::UserDefined(ident) => write!(f, "{}", ident),
+            Identifier::LParen => write!(f, "("),
+            Identifier::RParen => write!(f, ")"),
+            Identifier::LBrace => write!(f, "{{"),
+            Identifier::RBrace => write!(f, "}}"),
+            Identifier::LBracket => write!(f, "["),
+            Identifier::RBracket => write!(f, "]"),
+            Identifier::Colon => write!(f, ":"),
+            Identifier::Semicolon => write!(f, ";"),
+            Identifier::Dot => write!(f, "."),
+            Identifier::Comma => write!(f, ","),
+            Identifier::Plus => write!(f, "+"),
+            Identifier::Minus => write!(f, "-"),
+            Identifier::Star => write!(f, "*"),
+            Identifier::Slash => write!(f, "/"),
+            Identifier::Modulus => write!(f, "%"),
+            Identifier::Assignment => write!(f, "="),
+            Identifier::Equals => write!(f, "=="),
+            Identifier::NotEquals => write!(f, "!="),
+            Identifier::GreaterThan => write!(f, ">"),
+            Identifier::GreaterThanOrEqual => write!(f, ">="),
+            Identifier::LessThan => write!(f, "<"),
+            Identifier::LessThanOrEqual => write!(f, "<="),
+            Identifier::LogicalAnd => write!(f, "&&"),
+            Identifier::LogicalOr => write!(f, "||"),
+            Identifier::LogicalNot => write!(f, "!"),
+            Identifier::Function => write!(f, "fn"),
+            Identifier::Let => write!(f, "let"),
+            Identifier::True => write!(f, "true"),
+            Identifier::False => write!(f, "false"),
+            Identifier::If => write!(f, "if"),
+            Identifier::Else => write!(f, "else"),
+            Identifier::While => write!(f, "while"),
+            Identifier::Return => write!(f, "return"),
+            Identifier::Break => write!(f, "break"),
+            Identifier::Continue => write!(f, "continue"),
+        }
+    }
 }
 
-/// - "fn" -> Token::Fn
-/// - "let" -> Token::Let
-fn tokenize_special_identifier<'a>(
-) -> impl Parser<&'a str, Token, nom::error::VerboseError<&'a str>> {
-    context(
-        "Speziel Identifier",
-        terminated(
-            alt((
-                map(tag("fn"), |_| Token::Fn),
-                map(tag("let"), |_| Token::Let),
-            )),
-            space1,
-        ),
-    )
-}
-
-fn tokenize_numbers<'a>() -> impl Parser<&'a str, Token, nom::error::VerboseError<&'a str>> {
-    context("Number", map(integer(), Token::NumberInt))
-}
-
-/*fn integer<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
-    input: &'a str,
-) -> IResult<&'a str, i64, E> {
-    let a = combinator::map_res(
-        tuple((
-            opt(nom::character::complete::char::<_, E>('-')),
-            recognize(many1(one_of("1234567890"))),
-        )),
-        |(sign, digit)| {
-            let sign = match sign {
-                Some(_) => -1,
-                None => 1,
-            };
-
-            digit.parse::<i64>().map(|n| n * sign)
-        },
-    )(input);
-
-    todo!()
-}*/
-fn integer<'a>() -> impl Parser<&'a str, i64, nom::error::VerboseError<&'a str>> {
-    context(
-        "",
-        map_res(
-            tuple((opt(char('-')), recognize(many1(one_of("0123456789"))))),
-            |(sign, digits): (Option<char>, &str)| {
-                let sign = if sign.is_some() { -1 } else { 1 };
-                digits.parse::<i64>().map(|n| sign * n)
-            },
-        ),
-    )
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::NumberInt(num) => write!(f, "{}", num),
+            Literal::NumberFloat(num) => write!(f, "{}", num),
+        }
+    }
 }
