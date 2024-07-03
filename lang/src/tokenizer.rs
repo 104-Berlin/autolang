@@ -158,7 +158,7 @@ pub struct Tokenizer {
 }
 
 impl Tokenizer {
-    const METRICS: source_span::DefaultMetrics = DefaultMetrics::new();
+    pub const METRICS: source_span::DefaultMetrics = DefaultMetrics::new();
 
     pub fn new(input: impl InputStream<Output = char> + 'static) -> Self {
         Self {
@@ -178,6 +178,8 @@ impl Tokenizer {
         };
 
         self.span = Span::from(self.span.end());
+        
+        self.span.push(current_char, &Self::METRICS);
 
 
         match current_char {

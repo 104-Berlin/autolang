@@ -1,4 +1,8 @@
-use source_span::Span;
+use source_span::{fmt::{Color, Formatter, Style}, Span};
+
+use crate::tokenizer::Tokenizer;
+
+pub type ParseResult<T> = Result<T, Error>;
 
 #[derive(Debug)]
 pub struct Error {
@@ -27,6 +31,14 @@ impl Error {
 
     pub fn span(&self) -> Span {
         self.span
+    }
+
+    pub fn show_error(&self, source: &str) {
+        let mut fmt = Formatter::with_margin_color(Color::Blue);
+        fmt.add(self.span, None, Style::Error);
+        let formatted = fmt.render(source.chars().map(|c| Ok::<char, Error>(c)), self.span.aligned(), &Tokenizer::METRICS).unwrap();
+        println!("Error: {}", self.kind);
+        println!("{}", formatted);
     }
 }
 

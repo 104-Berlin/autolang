@@ -2,8 +2,7 @@ use binary_expression::{BinaryExpression, BinaryOperator};
 use expression::Expr;
 
 use crate::{
-    input_stream::InputStream,
-    tokenizer::{Identifier, Token, TokenKind, TokenizerStream},
+    error::{Error, ErrorKind, ParseResult}, input_stream::InputStream, tokenizer::{Identifier, Token, TokenKind, TokenizerStream}
 };
 
 pub mod binary_expression;
@@ -23,16 +22,16 @@ impl Parser {
         }
     }
 
-    pub fn parse(&mut self) -> Expr {
+    pub fn parse(&mut self) -> ParseResult<Expr> {
         self.parse_expression()
     }
 
-    fn parse_expression(&mut self) -> Expr {
-        let first = self.parse_primary_expression();
+    fn parse_expression(&mut self) -> ParseResult<Expr> {
+        let first = self.parse_primary_expression()?;
         self.parse_binary_expression(first)
     }
 
-    fn parse_primary_expression(&mut self) -> Expr {
+    fn parse_primary_expression(&mut self) -> ParseResult<Expr> {
         let token = self.input.peek().unwrap();
         match token.kind() {
             TokenKind::Identifier(Identifier::UserDefined(name)) => {
@@ -52,16 +51,16 @@ impl Parser {
                             self.input.advance();
                         }
                     }
-                    Expr::FunctionCall(name.clone())
+                    Ok(Expr::FunctionCall(name.clone()))
                 } else {
-                    Expr::Variable(name.clone())
+                    Ok(Expr::Variable(name.clone()))
                 }
             }
             TokenKind::Literal(literal) => {
                 self.input.advance();
-                Expr::Literal(literal.clone())
+                Ok(Expr::Literal(literal.clone()))
             }
-            token => panic!("Unexpected token: {:?}", token),
+            _ => Err(Error::new(token.span(), ErrorKind::UnexpectedToken)),
         }
     }
 
@@ -73,18 +72,19 @@ impl Parser {
             .unwrap_or(-1)
     }
 
-    fn parse_binary_expression(&mut self, mut lhs: Expr) -> Expr {
-        while let Some(Ok(op)) = self.input.peek().map(|t| BinaryOperator::try_from(t)) {
+    fn parse_binary_expression(&mut self, mut lhs: Expr) -> ParseResult<Expr> {
+        while let Some(op) = self.input.peek().map(|t| BinaryOperator::try_from(t)) {
+            let op = op?;
             self.input.advance();
 
-            let mut rhs = self.parse_primary_expression();
+            let mut rhs = self.parse_primary_expression()?;
 
             if op.precedence() < self.current_precedence() {
-                rhs = self.parse_binary_expression(rhs);
+                rhs = self.parse_binary_expression(rhs)?;
             }
             
             lhs = Expr::Binary(BinaryExpression::new(lhs.clone(), op, rhs));
         }
-        lhs
+        Ok(lhs)
     }
 }
