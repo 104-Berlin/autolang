@@ -1,16 +1,22 @@
-use lang::{parser::Parser, tokenizer::Tokenizer};
+use lang::parser::Parser;
 
 fn main() {
-    let source = "32 + 123 * 43 -- hello * 32 + 3";
+    let source = "3 - 1 * 4 + 5";
+    // Expected
+    //(((1 + (2 * 3)) - (0 * 4)) + 5)
 
-    let tokens = Tokenizer::new(source).collect::<Vec<_>>();
-    println!("{:#?}", tokens);
+    // Found
+    //(1 + ((2 * 3) - ((0 * 4) + 5)))
+
+    //let source = "1 + 2 * 3 * 4 * 5 + 6 + 0 - 7 * 8";
 
     let mut parser = Parser::new(source);
 
     match parser.parse() {
-        Ok(tree) => println!("{}", tree),
+        Ok(tree) => {
+            println!("{}", tree);
+            println!("Result: {}", tree.evalutae());
+        }
         Err(e) => e.show_error(source),
     }
-    
 }

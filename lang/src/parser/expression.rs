@@ -14,6 +14,38 @@ pub enum Expr {
     Variable(String),
 }
 
+impl Expr {
+    pub fn evalutae(&self) -> i64 {
+        match self {
+            Expr::FunctionCall(name) | Expr::Variable(name) => {
+                println!(
+                    "Function call / Variable not implemented. Evaluating '{}' to 0",
+                    name
+                );
+                0
+            }
+            Expr::Literal(literal) => match literal {
+                Literal::NumberInt(val) => *val as i64,
+                Literal::NumberFloat(val) => {
+                    println!("Evaluating float to int: {}", val);
+                    val.trunc() as i64
+                }
+            },
+            Expr::Binary(BinaryExpression { lhs, op, rhs }) => {
+                let lhs = lhs.evalutae();
+                let rhs = rhs.evalutae();
+
+                match op {
+                    crate::parser::binary_expression::BinaryOperator::Add => lhs + rhs,
+                    crate::parser::binary_expression::BinaryOperator::Substract => lhs - rhs,
+                    crate::parser::binary_expression::BinaryOperator::Multiply => lhs * rhs,
+                    crate::parser::binary_expression::BinaryOperator::Divide => lhs / rhs,
+                }
+            }
+        }
+    }
+}
+
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -1,6 +1,9 @@
 use std::fmt::Display;
 
-use crate::{error::{Error, ErrorKind}, tokenizer::{Identifier, Token, TokenKind}};
+use crate::{
+    error::{Error, ErrorKind},
+    tokenizer::{Identifier, Token, TokenKind},
+};
 
 use super::expression::Expr;
 
@@ -40,14 +43,14 @@ impl BinaryOperator {
 
 impl TryFrom<Token> for BinaryOperator {
     type Error = Error;
-    
+
     fn try_from(value: Token) -> Result<Self, Self::Error> {
-        match value.kind() {
+        match value.kind {
             TokenKind::Identifier(Identifier::Plus) => Ok(Self::Add),
             TokenKind::Identifier(Identifier::Minus) => Ok(Self::Substract),
             TokenKind::Identifier(Identifier::Star) => Ok(Self::Multiply),
             TokenKind::Identifier(Identifier::Slash) => Ok(Self::Divide),
-            _ => Err(Error::new(value.span(), ErrorKind::InvalidOperator)),
+            _ => Err(Error::new(value.span, ErrorKind::InvalidOperator)),
         }
     }
 }

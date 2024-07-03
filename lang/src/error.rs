@@ -1,6 +1,9 @@
-use source_span::{fmt::{Color, Formatter, Style}, Span};
+use source_span::{
+    fmt::{Color, Formatter, Style},
+    Span,
+};
 
-use crate::tokenizer::Tokenizer;
+use crate::tokenizer::{TokenKind, Tokenizer};
 
 pub type ParseResult<T> = Result<T, Error>;
 
@@ -12,7 +15,10 @@ pub struct Error {
 
 #[derive(Debug)]
 pub enum ErrorKind {
-    UnexpectedToken,
+    UnexpectedToken {
+        found: TokenKind,
+        expected: Option<TokenKind>,
+    },
     InvalidOperator,
 
     UnexpectedEOF,
@@ -25,6 +31,10 @@ impl Error {
         Error { span, kind }
     }
 
+    pub fn unexpected_token(span: Span, found: TokenKind, expected: Option<TokenKind>) -> Error {
+        Error::new(span, ErrorKind::UnexpectedToken { found, expected })
+    }
+
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
     }
@@ -34,10 +44,24 @@ impl Error {
     }
 
     pub fn show_error(&self, source: &str) {
+        // Code to extract the source code from the span
+        /*let source_buffer = SourceBuffer::new(
+            source.chars().map(|c| Ok::<char, ()>(c)),
+            Position::default(),
+            Tokenizer::METRICS,
+        );*/
+        let message = format!("{}", self.kind);
+
         let mut fmt = Formatter::with_margin_color(Color::Blue);
-        fmt.add(self.span, None, Style::Error);
-        let formatted = fmt.render(source.chars().map(|c| Ok::<char, Error>(c)), self.span.aligned(), &Tokenizer::METRICS).unwrap();
-        println!("Error: {}", self.kind);
+        fmt.add(self.span, Some(message), Style::Error);
+        let formatted = fmt
+            .render(
+                source.chars().map(|c| Ok::<char, ()>(c)),
+                self.span.aligned(),
+                &Tokenizer::METRICS,
+            )
+            .unwrap();
+
         println!("{}", formatted);
     }
 }
@@ -57,7 +81,16 @@ impl std::fmt::Display for Error {
 impl std::fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::UnexpectedToken => write!(f, "Unexpected token"),
+            Self::UnexpectedToken {
+                found,
+                expected: None,
+            } => write!(f, "Unexpected token '{}'", found),
+            Self::UnexpectedToken {
+                found,
+                expected: Some(expected),
+            } => {
+                write!(f, "Unexpected token '{}', expected '{}'", found, expected)
+            }
             Self::InvalidOperator => write!(f, "Invalid operator"),
             Self::UnexpectedEOF => write!(f, "Unexpected end of file"),
         }

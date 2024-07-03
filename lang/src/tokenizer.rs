@@ -1,8 +1,4 @@
-use std::{
-    cell::{Ref, RefCell},
-    iter::Peekable,
-    ops::DerefMut,
-};
+use std::{fmt::Display, iter::Peekable};
 
 use source_span::{DefaultMetrics, Span};
 
@@ -125,23 +121,14 @@ impl Identifier {
 /// Tokens
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
-    kind: TokenKind,
-    span: Span,
+    pub kind: TokenKind,
+    pub span: Span,
 }
 
 impl Token {
     pub fn new(kind: TokenKind, span: Span) -> Self {
         Self { kind, span }
     }
-
-    pub fn kind(&self) -> &TokenKind {
-        &self.kind
-    }
-
-    pub fn span(&self) -> Span {
-        self.span
-    }
-
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -178,32 +165,94 @@ impl Tokenizer {
         };
 
         self.span = Span::from(self.span.end());
-        
+
         self.span.push(current_char, &Self::METRICS);
 
-
         match current_char {
-            '(' => Some(Token::new(TokenKind::Identifier(Identifier::LParen), self.span)),
-            ')' => Some(Token::new(TokenKind::Identifier(Identifier::RParen), self.span)),
-            '{' => Some(Token::new(TokenKind::Identifier(Identifier::LBrace), self.span)),
-            '}' => Some(Token::new(TokenKind::Identifier(Identifier::RBrace), self.span)),
-            '[' => Some(Token::new(TokenKind::Identifier(Identifier::LBracket), self.span)),
-            ']' => Some(Token::new(TokenKind::Identifier(Identifier::RBracket), self.span)),
-            ':' => Some(Token::new(TokenKind::Identifier(Identifier::Colon), self.span)),
-            ';' => Some(Token::new(TokenKind::Identifier(Identifier::Semicolon), self.span)),
-            '.' => Some(Token::new(TokenKind::Identifier(Identifier::Dot), self.span)),
-            ',' => Some(Token::new(TokenKind::Identifier(Identifier::Comma), self.span)),
-            '+' => Some(Token::new(TokenKind::Identifier(Identifier::Plus), self.span)),
-            '-' => Some(Token::new(TokenKind::Identifier(Identifier::Minus), self.span)),
-            '*' => Some(Token::new(TokenKind::Identifier(Identifier::Star), self.span)),
-            '/' => Some(Token::new(TokenKind::Identifier(Identifier::Slash), self.span)),
-            '%' => Some(Token::new(TokenKind::Identifier(Identifier::Modulus), self.span)),
-            '=' => Some(Token::new(TokenKind::Identifier(Identifier::Assignment), self.span)),
-            '!' => Some(Token::new(TokenKind::Identifier(Identifier::LogicalNot), self.span)),
-            '&' => Some(Token::new(TokenKind::Identifier(Identifier::LogicalAnd), self.span)),
-            '|' => Some(Token::new(TokenKind::Identifier(Identifier::LogicalOr), self.span)),
-            '<' => Some(Token::new(TokenKind::Identifier(Identifier::LessThan), self.span)),
-            '>' => Some(Token::new(TokenKind::Identifier(Identifier::GreaterThan), self.span)),
+            '(' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LParen),
+                self.span,
+            )),
+            ')' => Some(Token::new(
+                TokenKind::Identifier(Identifier::RParen),
+                self.span,
+            )),
+            '{' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LBrace),
+                self.span,
+            )),
+            '}' => Some(Token::new(
+                TokenKind::Identifier(Identifier::RBrace),
+                self.span,
+            )),
+            '[' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LBracket),
+                self.span,
+            )),
+            ']' => Some(Token::new(
+                TokenKind::Identifier(Identifier::RBracket),
+                self.span,
+            )),
+            ':' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Colon),
+                self.span,
+            )),
+            ';' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Semicolon),
+                self.span,
+            )),
+            '.' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Dot),
+                self.span,
+            )),
+            ',' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Comma),
+                self.span,
+            )),
+            '+' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Plus),
+                self.span,
+            )),
+            '-' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Minus),
+                self.span,
+            )),
+            '*' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Star),
+                self.span,
+            )),
+            '/' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Slash),
+                self.span,
+            )),
+            '%' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Modulus),
+                self.span,
+            )),
+            '=' => Some(Token::new(
+                TokenKind::Identifier(Identifier::Assignment),
+                self.span,
+            )),
+            '!' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LogicalNot),
+                self.span,
+            )),
+            '&' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LogicalAnd),
+                self.span,
+            )),
+            '|' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LogicalOr),
+                self.span,
+            )),
+            '<' => Some(Token::new(
+                TokenKind::Identifier(Identifier::LessThan),
+                self.span,
+            )),
+            '>' => Some(Token::new(
+                TokenKind::Identifier(Identifier::GreaterThan),
+                self.span,
+            )),
             c if c.is_numeric() => Some(self.parse_number_literal(current_char)),
             c if c.is_alphabetic() || c == '_' => Some(self.parse_identifier(current_char)),
             _ => None,
@@ -225,9 +274,15 @@ impl Tokenizer {
         }
 
         if number.contains('.') {
-            Token::new(TokenKind::Literal(Literal::NumberFloat(number.parse().unwrap())), self.span)
+            Token::new(
+                TokenKind::Literal(Literal::NumberFloat(number.parse().unwrap())),
+                self.span,
+            )
         } else {
-            Token::new(TokenKind::Literal(Literal::NumberInt(number.parse().unwrap())), self.span)
+            Token::new(
+                TokenKind::Literal(Literal::NumberInt(number.parse().unwrap())),
+                self.span,
+            )
         }
     }
 
@@ -245,7 +300,10 @@ impl Tokenizer {
             }
         }
 
-        Token::new(TokenKind::Identifier(Identifier::from_string(identifier)), self.span)
+        Token::new(
+            TokenKind::Identifier(Identifier::from_string(identifier)),
+            self.span,
+        )
     }
 }
 
@@ -285,3 +343,63 @@ impl InputStream for TokenizerStream {
     }
 }
 
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenKind::Identifier(identifier) => write!(f, "{}", identifier),
+            TokenKind::Literal(literal) => write!(f, "{}", literal),
+        }
+    }
+}
+
+impl Display for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Identifier::UserDefined(ident) => write!(f, "{}", ident),
+            Identifier::LParen => write!(f, "("),
+            Identifier::RParen => write!(f, ")"),
+            Identifier::LBrace => write!(f, "{{"),
+            Identifier::RBrace => write!(f, "}}"),
+            Identifier::LBracket => write!(f, "["),
+            Identifier::RBracket => write!(f, "]"),
+            Identifier::Colon => write!(f, ":"),
+            Identifier::Semicolon => write!(f, ";"),
+            Identifier::Dot => write!(f, "."),
+            Identifier::Comma => write!(f, ","),
+            Identifier::Plus => write!(f, "+"),
+            Identifier::Minus => write!(f, "-"),
+            Identifier::Star => write!(f, "*"),
+            Identifier::Slash => write!(f, "/"),
+            Identifier::Modulus => write!(f, "%"),
+            Identifier::Assignment => write!(f, "="),
+            Identifier::Equals => write!(f, "=="),
+            Identifier::NotEquals => write!(f, "!="),
+            Identifier::GreaterThan => write!(f, ">"),
+            Identifier::GreaterThanOrEqual => write!(f, ">="),
+            Identifier::LessThan => write!(f, "<"),
+            Identifier::LessThanOrEqual => write!(f, "<="),
+            Identifier::LogicalAnd => write!(f, "&&"),
+            Identifier::LogicalOr => write!(f, "||"),
+            Identifier::LogicalNot => write!(f, "!"),
+            Identifier::Function => write!(f, "fn"),
+            Identifier::Let => write!(f, "let"),
+            Identifier::True => write!(f, "true"),
+            Identifier::False => write!(f, "false"),
+            Identifier::If => write!(f, "if"),
+            Identifier::Else => write!(f, "else"),
+            Identifier::While => write!(f, "while"),
+            Identifier::Return => write!(f, "return"),
+            Identifier::Break => write!(f, "break"),
+            Identifier::Continue => write!(f, "continue"),
+        }
+    }
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::NumberInt(num) => write!(f, "{}", num),
+            Literal::NumberFloat(num) => write!(f, "{}", num),
+        }
+    }
+}
