@@ -39,10 +39,7 @@ impl Parser {
     }
 
     fn parse_primary_expression(&mut self) -> ParseResult<Expr> {
-        let Token { span, kind } = self
-            .input
-            .peek()
-            .ok_or(Error::new(Span::default(), ErrorKind::UnexpectedEOF))?;
+        let Token { span, kind } = self.peek()?;
 
         match kind {
             TokenKind::Identifier(Identifier::UserDefined(name)) => {
@@ -52,6 +49,12 @@ impl Parser {
             TokenKind::Literal(literal) => {
                 self.input.advance();
                 Ok(Expr::Literal(literal.clone()))
+            }
+            TokenKind::Identifier(Identifier::LParen) => {
+                self.input.advance();
+                let expr = self.parse_expression()?;
+                self.consume_checked(TokenKind::Identifier(Identifier::RParen))?;
+                Ok(expr)
             }
             _ => Err(Error::new(
                 span,
@@ -65,7 +68,7 @@ impl Parser {
 
     /// This parses everything that starts with an identifier. Variables, function calls, etc.
     fn parse_expression_identifier(&mut self, identifier: &str) -> ParseResult<Expr> {
-        if let Some(TokenKind::Identifier(Identifier::LParen)) = self.input.peek().map(|t| t.kind) {
+        if let Ok(TokenKind::Identifier(Identifier::LParen)) = self.peek().map(|t| t.kind) {
             self.input.advance();
             let mut args = Vec::new();
             loop {
@@ -88,15 +91,14 @@ impl Parser {
     }
 
     fn current_precedence(&mut self) -> i16 {
-        self.input
-            .peek()
+        self.peek()
             .map(|t| BinaryOperator::try_from(t).map(|op| op.precedence()))
             .unwrap_or(Ok(-1))
             .unwrap_or(-1)
     }
 
     fn parse_binary_expression(&mut self, mut lhs: Expr, precendence: i16) -> ParseResult<Expr> {
-        while let Some(token) = self.input.peek() {
+        while let Ok(token) = self.peek() {
             let op = match BinaryOperator::try_from(token) {
                 Ok(op) => op,
                 Err(_) => {
@@ -124,19 +126,33 @@ impl Parser {
     where
         F: FnOnce(TokenKind) -> bool,
     {
-        self.input.peek().map_or(false, |t| p(t.kind))
+        self.peek().map_or(false, |t| p(t.kind))
     }
 
     fn expect_token(&mut self, expected: TokenKind) -> ParseResult<()> {
-        let Token { kind, span } = self
-            .input
-            .peek()
-            .ok_or(Error::new(Span::default(), ErrorKind::UnexpectedEOF))?;
+        let Token { kind, span } = self.peek()?;
 
         if kind == expected {
             Ok(())
         } else {
             Err(Error::unexpected_token(span, kind, Some(expected)))
         }
+    }
+
+    fn consume_checked(&mut self, expected: TokenKind) -> ParseResult<()> {
+        let Token { kind, span } = self.peek()?;
+
+        if kind == expected {
+            self.input.advance();
+            Ok(())
+        } else {
+            Err(Error::unexpected_token(span, kind, Some(expected)))
+        }
+    }
+
+    fn peek(&mut self) -> ParseResult<Token> {
+        self.input
+            .peek()
+            .ok_or(Error::new(Span::default(), ErrorKind::UnexpectedEOF))
     }
 }
