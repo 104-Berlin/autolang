@@ -94,9 +94,19 @@ impl<'a> ExecutionContext<'a> {
             .iter()
             .zip(input_values)
         {
+            let value = value?;
+            if value.value.type_id != arg_type.value {
+                return Err(Error::new_type_mismatch(
+                    value.span,
+                    arg_type.value.clone(),
+                    value.value.type_id.clone(),
+                    TypeMismatchReason::FunctionArgument,
+                ));
+            }
+
             // Make spanned tuple of the variable name and the value
             // The Span will be the span of the expression which is the input for the function call
-            let value = value?.map_value(|val| (arg_name.value.clone(), val));
+            let value = value.map_value(|val| (arg_name.value.clone(), val));
 
             scope.variables.push(value);
         }

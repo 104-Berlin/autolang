@@ -4,6 +4,6 @@ fn my_func(b: float) -> float {
 }
 
 fn main() -> float {
-    let a: float = my_func(32.3);
+    let a: float = my_func(32.0);
     123.3 + 3.1 - a
 }
