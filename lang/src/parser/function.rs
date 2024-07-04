@@ -7,6 +7,7 @@ pub type ArgumentDecl = (Spanned<String>, Spanned<TypeID>);
 #[derive(Debug, Clone)]
 pub struct FunctionProto {
     pub name: Spanned<String>,
+    pub return_type: Spanned<TypeID>,
     pub arguments: Spanned<Vec<ArgumentDecl>>,
 }
 

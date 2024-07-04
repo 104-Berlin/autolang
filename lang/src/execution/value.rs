@@ -1,8 +1,8 @@
 use std::{any::Any, fmt::Display};
 
 use crate::{
-    error::{Error, ErrorKind, ParseResult},
-    parser::type_def::TypeID,
+    error::{Error, ErrorKind, ParseResult, TypeMismatchReason},
+    parser::{binary_expression::BinaryOperator, type_def::TypeID},
     spanned::Spanned,
 };
 
@@ -12,10 +12,6 @@ pub struct Value {
 }
 
 impl Value {
-    pub fn new(value: Box<dyn Any>, type_id: TypeID) -> Self {
-        Self { value, type_id }
-    }
-
     pub fn new_void() -> Self {
         Self {
             value: Box::new(()),
@@ -101,6 +97,7 @@ impl Value {
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
+                TypeMismatchReason::VariableAssignment,
             ))
         }
     }
@@ -111,6 +108,7 @@ impl Value {
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::Add),
             ));
         }
 
@@ -139,6 +137,7 @@ impl Value {
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::Substract),
             ));
         }
 
@@ -163,6 +162,7 @@ impl Value {
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::Multiply),
             ));
         }
 
@@ -187,6 +187,7 @@ impl Value {
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::Divide),
             ));
         }
 

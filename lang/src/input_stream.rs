@@ -12,6 +12,42 @@ pub trait InputStream {
     fn next(&mut self) -> Option<Self::Output>;
     fn peek(&mut self) -> Option<Self::Output>;
     fn advance(&mut self);
+
+    fn is_next(&mut self, expected: Self::Output) -> bool
+    where
+        Self::Output: PartialEq,
+    {
+        self.peek() == Some(expected)
+    }
+
+    fn expect(&mut self, expected: Self::Output) -> Option<Self::Output>
+    where
+        Self::Output: PartialEq,
+    {
+        let output = self.peek()?;
+
+        if output == expected {
+            self.advance();
+            Some(output)
+        } else {
+            None
+        }
+    }
+
+    fn consume_checked(&mut self, expected: Self::Output) -> Option<Self::Output>
+    where
+        Self::Output: PartialEq,
+    {
+        self.expect(expected).inspect(|_| self.advance())
+    }
+
+    fn consume_checked_or<E>(&mut self, expected: Self::Output, error: E) -> Result<Self::Output, E>
+    where
+        Self: Sized,
+        Self::Output: PartialEq,
+    {
+        self.consume_checked(expected).ok_or(error)
+    }
 }
 
 impl<I> InputStream for Peekable<I>
