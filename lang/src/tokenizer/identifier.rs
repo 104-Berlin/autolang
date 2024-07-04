@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Identifier {
     /// User defined identifier (aka. variable names, function names, types, etc.)
@@ -98,6 +100,49 @@ impl Identifier {
             "break" => Self::Break,
             "continue" => Self::Continue,
             _ => Self::UserDefined(s),
+        }
+    }
+}
+
+impl Display for Identifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Identifier::UserDefined(ident) => write!(f, "{}", ident),
+            Identifier::LParen => write!(f, "("),
+            Identifier::RParen => write!(f, ")"),
+            Identifier::LBrace => write!(f, "{{"),
+            Identifier::RBrace => write!(f, "}}"),
+            Identifier::LBracket => write!(f, "["),
+            Identifier::RBracket => write!(f, "]"),
+            Identifier::Colon => write!(f, ":"),
+            Identifier::Semicolon => write!(f, ";"),
+            Identifier::Dot => write!(f, "."),
+            Identifier::Comma => write!(f, ","),
+            Identifier::Plus => write!(f, "+"),
+            Identifier::Minus => write!(f, "-"),
+            Identifier::Star => write!(f, "*"),
+            Identifier::Slash => write!(f, "/"),
+            Identifier::Modulus => write!(f, "%"),
+            Identifier::Assignment => write!(f, "="),
+            Identifier::Equals => write!(f, "=="),
+            Identifier::NotEquals => write!(f, "!="),
+            Identifier::GreaterThan => write!(f, ">"),
+            Identifier::GreaterThanOrEqual => write!(f, ">="),
+            Identifier::LessThan => write!(f, "<"),
+            Identifier::LessThanOrEqual => write!(f, "<="),
+            Identifier::LogicalAnd => write!(f, "&&"),
+            Identifier::LogicalOr => write!(f, "||"),
+            Identifier::LogicalNot => write!(f, "!"),
+            Identifier::Function => write!(f, "fn"),
+            Identifier::Let => write!(f, "let"),
+            Identifier::True => write!(f, "true"),
+            Identifier::False => write!(f, "false"),
+            Identifier::If => write!(f, "if"),
+            Identifier::Else => write!(f, "else"),
+            Identifier::While => write!(f, "while"),
+            Identifier::Return => write!(f, "return"),
+            Identifier::Break => write!(f, "break"),
+            Identifier::Continue => write!(f, "continue"),
         }
     }
 }

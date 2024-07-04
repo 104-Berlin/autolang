@@ -1,9 +1,4 @@
-use lang::{
-    error::{Error, ErrorKind},
-    input_stream::FileInputStream,
-    parser::Parser,
-};
-use source_span::Span;
+use lang::{input_stream::FileInputStream, parser::Parser};
 use std::{env, fs::OpenOptions, io::BufReader};
 use utf8_chars::BufReadCharsExt;
 
@@ -23,23 +18,20 @@ fn main() {
 
     match Parser::new(FileInputStream::new(file)).parse_module() {
         Ok(module) => {
-            for func in module.functions() {
-                println!("Function: {}", func.proto.name);
-                for stmt in func.proto.arguments.iter() {
-                    println!("arg {}: {};", stmt.0, stmt.1);
+            for func in module.value.functions() {
+                let func = &func.value;
+                println!("Function: {}", func.proto.value.name.value);
+                for stmt in func.proto.value.arguments.value.iter() {
+                    println!("arg {}: {};", stmt.0.value, stmt.1.value);
                 }
-                println!("Body: {}", func.body);
+                println!("Body: {}", func.body.value);
             }
         }
         Err(e) => {
             let file = OpenOptions::new().read(true).open(&input_file).unwrap();
             let mut reader = BufReader::new(file);
 
-            e.show_error(
-                reader
-                    .chars()
-                    .map(|c| c.map_err(|_| Error::new(Span::default(), ErrorKind::UnexpectedEOF))),
-            );
+            e.show_error(reader.chars().map(|c| c.map_err(|_| ())));
         }
     };
 }

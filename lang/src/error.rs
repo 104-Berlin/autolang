@@ -3,9 +3,21 @@ use source_span::{
     Position, Span,
 };
 
-use crate::tokenizer::{token::TokenKind, Tokenizer};
+use crate::tokenizer::{token::Token, Tokenizer};
 
-pub type ParseResult<T> = Result<T, Error>;
+#[derive(Clone, Debug)]
+pub struct Spanned<T> {
+    pub span: Span,
+    pub value: T,
+}
+
+impl<T> Spanned<T> {
+    pub fn new(value: T, span: Span) -> Spanned<T> {
+        Spanned { span, value }
+    }
+}
+
+pub type ParseResult<T> = Result<Spanned<T>, Error>;
 
 #[derive(Debug)]
 pub struct Error {
@@ -16,8 +28,8 @@ pub struct Error {
 #[derive(Debug)]
 pub enum ErrorKind {
     UnexpectedToken {
-        found: TokenKind,
-        expected: Option<TokenKind>,
+        found: Token,
+        expected: Option<Token>,
     },
     InvalidOperator,
 
@@ -31,8 +43,17 @@ impl Error {
         Error { span, kind }
     }
 
-    pub fn unexpected_token(span: Span, found: TokenKind, expected: Option<TokenKind>) -> Error {
-        Error::new(span, ErrorKind::UnexpectedToken { found, expected })
+    pub fn unexpected_token(
+        Spanned::<Token> { value, span }: Spanned<Token>,
+        expected: Option<Token>,
+    ) -> Error {
+        Error::new(
+            span,
+            ErrorKind::UnexpectedToken {
+                found: value,
+                expected,
+            },
+        )
     }
 
     pub fn kind(&self) -> &ErrorKind {
@@ -45,7 +66,7 @@ impl Error {
 
     pub fn show_error<I>(&self, source: I)
     where
-        I: Iterator<Item = ParseResult<char>>,
+        I: Iterator<Item = Result<char, ()>>,
     {
         // Code to extract the source code from the span
         /*let source_buffer = SourceBuffer::new(

@@ -1,8 +1,8 @@
-use crate::parser::function::FunctionDecl;
+use crate::{error::Spanned, parser::function::FunctionDecl};
 
 pub struct Module {
     name: String,
-    functions: Vec<FunctionDecl>,
+    functions: Vec<Spanned<FunctionDecl>>,
 }
 
 impl Module {
@@ -17,11 +17,11 @@ impl Module {
         &self.name
     }
 
-    pub fn add_function(&mut self, func: FunctionDecl) {
+    pub fn add_function(&mut self, func: Spanned<FunctionDecl>) {
         self.functions.push(func);
     }
 
-    pub fn functions(&self) -> &[FunctionDecl] {
+    pub fn functions(&self) -> &[Spanned<FunctionDecl>] {
         &self.functions
     }
 }

@@ -5,15 +5,10 @@ use source_span::Span;
 use type_def::TypeID;
 
 use crate::{
-    error::{Error, ErrorKind, ParseResult},
+    error::{Error, ErrorKind, ParseResult, Spanned},
     input_stream::InputStream,
     module::Module,
-    tokenizer::{
-        identifier::Identifier,
-        literal::Literal,
-        token::{Token, TokenKind},
-        TokenizerStream,
-    },
+    tokenizer::{identifier::Identifier, literal::Literal, token::Token, TokenizerStream},
 };
 
 pub mod binary_expression;
@@ -23,7 +18,7 @@ pub mod type_def;
 
 /// Creates a parse tree from a stream of tokens.
 pub struct Parser {
-    input: Box<dyn InputStream<Output = Token>>,
+    input: Box<dyn InputStream<Output = Spanned<Token>>>,
 }
 
 impl Parser {
@@ -34,18 +29,18 @@ impl Parser {
     }
 }
 
-impl TryInto<Expr> for Parser {
+impl TryInto<Spanned<Expr>> for Parser {
     type Error = Error;
 
-    fn try_into(mut self) -> Result<Expr, Self::Error> {
+    fn try_into(mut self) -> Result<Spanned<Expr>, Self::Error> {
         self.parse_expression()
     }
 }
 
-impl TryInto<Module> for Parser {
+impl TryInto<Spanned<Module>> for Parser {
     type Error = Error;
 
-    fn try_into(mut self) -> Result<Module, Self::Error> {
+    fn try_into(mut self) -> Result<Spanned<Module>, Self::Error> {
         self.parse_module()
     }
 }
@@ -55,10 +50,12 @@ impl TryInto<Module> for Parser {
 impl Parser {
     pub fn parse_module(&mut self) -> ParseResult<Module> {
         let mut module = Module::new("main");
+        let mut module_span = Span::default();
 
-        while let Ok(Token { kind, span }) = self.peek() {
-            match kind {
-                TokenKind::Identifier(Identifier::Function) => {
+        while let Ok(Spanned::<Token> { value, span }) = self.peek() {
+            module_span.append(span);
+            match value {
+                Token::Identifier(Identifier::Function) => {
                     self.input.advance();
                     let function = self.parse_function()?;
                     module.add_function(function);
@@ -67,7 +64,7 @@ impl Parser {
                     return Err(Error::new(
                         span,
                         ErrorKind::UnexpectedToken {
-                            found: kind,
+                            found: value,
                             expected: None,
                         },
                     ));
@@ -75,22 +72,29 @@ impl Parser {
             }
         }
 
-        Ok(module)
+        Ok(Spanned::new(module, module_span))
     }
 
     fn parse_function(&mut self) -> ParseResult<FunctionDecl> {
         let function_name = self.parse_user_defined_identifier()?;
-        let proto = self.parse_function_proto(&function_name)?;
+        let proto = self.parse_function_proto(function_name.clone())?;
         let body = self.parse_block_expression()?;
-        Ok(FunctionDecl { proto, body })
+
+        let span = function_name.span.union(body.span);
+
+        Ok(Spanned::new(FunctionDecl { proto, body }, span))
     }
 
-    fn parse_function_proto(&mut self, name: &str) -> ParseResult<FunctionProto> {
+    fn parse_function_proto(&mut self, name: Spanned<String>) -> ParseResult<FunctionProto> {
         let args = self.parse_function_args()?;
-        Ok(FunctionProto {
-            name: name.to_string(),
-            arguments: args,
-        })
+        let span = name.span.union(args.span);
+        Ok(Spanned::new(
+            FunctionProto {
+                name: name.clone(),
+                arguments: args,
+            },
+            span,
+        ))
     }
 }
 
@@ -98,9 +102,9 @@ impl Parser {
 // Parse Expression
 impl Parser {
     pub fn parse_expression(&mut self) -> ParseResult<Expr> {
-        match self.peek()?.kind {
-            TokenKind::Identifier(Identifier::Let) => self.parse_let_expression(),
-            TokenKind::Identifier(Identifier::LBrace) => self.parse_block_expression(),
+        match self.peek()?.value {
+            Token::Identifier(Identifier::Let) => self.parse_let_expression(),
+            Token::Identifier(Identifier::LBrace) => self.parse_block_expression(),
             _ => {
                 let lhs = self.parse_primary_expression()?;
                 self.parse_binary_expression(lhs, 0)
@@ -109,27 +113,30 @@ impl Parser {
     }
 
     fn parse_primary_expression(&mut self) -> ParseResult<Expr> {
-        let Token { span, kind } = self.peek()?;
+        let Spanned::<Token> { value, span } = self.peek()?;
 
-        match kind {
-            TokenKind::Identifier(Identifier::UserDefined(name)) => {
+        match value {
+            Token::Identifier(Identifier::UserDefined(name)) => {
                 self.input.advance();
-                self.parse_expression_identifier(&name)
+                self.parse_expression_identifier(Spanned::new(name, span))
             }
-            TokenKind::Literal(literal) => {
+            Token::Literal(literal) => {
                 self.input.advance();
-                Ok(Expr::Literal(literal.clone()))
+                Ok(Spanned::new(
+                    Expr::Literal(Spanned::new(literal, span)),
+                    span,
+                ))
             }
-            TokenKind::Identifier(Identifier::LParen) => {
+            Token::Identifier(Identifier::LParen) => {
                 self.input.advance();
                 let expr = self.parse_expression()?;
-                self.consume_checked(TokenKind::Identifier(Identifier::RParen))?;
+                self.consume_checked(Token::Identifier(Identifier::RParen))?;
                 Ok(expr)
             }
             _ => Err(Error::new(
                 span,
                 ErrorKind::UnexpectedToken {
-                    found: kind,
+                    found: value,
                     expected: None,
                 },
             )),
@@ -137,8 +144,12 @@ impl Parser {
     }
 
     /// This parses everything that starts with an identifier. Variables, function calls, etc.
-    fn parse_expression_identifier(&mut self, identifier: &str) -> ParseResult<Expr> {
-        if let Ok(TokenKind::Identifier(Identifier::LParen)) = self.peek().map(|t| t.kind) {
+    fn parse_expression_identifier(&mut self, identifier: Spanned<String>) -> ParseResult<Expr> {
+        if let Ok(Spanned::<Token> {
+            value: Token::Identifier(Identifier::LParen),
+            span,
+        }) = self.peek()
+        {
             self.input.advance();
             let mut args = Vec::new();
             loop {
@@ -146,17 +157,23 @@ impl Parser {
                     args.push(input);
                 }
 
-                if self.is_next_token(TokenKind::Identifier(Identifier::Comma)) {
+                if self.is_next_token(Token::Identifier(Identifier::Comma)) {
                     self.input.advance();
                 } else {
                     break;
                 }
             }
-            self.expect_token(TokenKind::Identifier(Identifier::RParen))?;
-            self.input.advance();
-            Ok(Expr::FunctionCall(identifier.to_string()))
+            let r_paren_span = self
+                .consume_checked(Token::Identifier(Identifier::RParen))?
+                .span;
+
+            Ok(Spanned::new(
+                Expr::FunctionCall(identifier),
+                span.union(r_paren_span),
+            ))
         } else {
-            Ok(Expr::Variable(identifier.to_string()))
+            let span = identifier.span;
+            Ok(Spanned::new(Expr::Variable(identifier), span))
         }
     }
 
@@ -167,15 +184,19 @@ impl Parser {
             .unwrap_or(-1)
     }
 
-    fn parse_binary_expression(&mut self, mut lhs: Expr, precendence: i16) -> ParseResult<Expr> {
+    fn parse_binary_expression(
+        &mut self,
+        mut lhs: Spanned<Expr>,
+        precendence: i16,
+    ) -> ParseResult<Expr> {
         while let Ok(token) = self.peek() {
-            let op = match BinaryOperator::try_from(token) {
+            let op = match Spanned::<BinaryOperator>::try_from(token) {
                 Ok(op) => op,
                 Err(_) => {
                     return Ok(lhs);
                 }
             };
-            if op.precedence() < precendence {
+            if op.value.precedence() < precendence {
                 return Ok(lhs);
             }
 
@@ -183,11 +204,16 @@ impl Parser {
 
             let mut rhs = self.parse_primary_expression()?;
 
-            if op.precedence() < self.current_precedence() {
-                rhs = self.parse_binary_expression(rhs, op.precedence() + 1)?;
+            if op.value.precedence() < self.current_precedence() {
+                rhs = self.parse_binary_expression(rhs, op.value.precedence() + 1)?;
             }
 
-            lhs = Expr::Binary(BinaryExpression::new(lhs.clone(), op, rhs));
+            let span = lhs.span.union(rhs.span);
+
+            lhs = Spanned::new(
+                Expr::Binary(Spanned::new(BinaryExpression::new(lhs, op, rhs), span)),
+                span,
+            );
         }
         Ok(lhs)
     }
@@ -195,19 +221,21 @@ impl Parser {
     fn parse_block_expression(&mut self) -> ParseResult<Expr> {
         let mut block = Vec::new();
 
-        self.consume_checked(TokenKind::Identifier(Identifier::LBrace))?;
+        let span = self
+            .consume_checked(Token::Identifier(Identifier::LBrace))?
+            .span;
 
         let mut return_expression = None;
 
-        while !self.is_next_token(TokenKind::Identifier(Identifier::RBrace)) {
+        while !self.is_next_token(Token::Identifier(Identifier::RBrace)) {
             let expr = self.parse_expression()?;
 
             // We expect a semicolon after each expression in a block, or we are at the end of the block.
-            match self.consume_checked(TokenKind::Identifier(Identifier::Semicolon)) {
+            match self.consume_checked(Token::Identifier(Identifier::Semicolon)) {
                 Ok(_) => {
                     block.push(expr);
                 }
-                Err(_) if self.is_next_token(TokenKind::Identifier(Identifier::RBrace)) => {
+                Err(_) if self.is_next_token(Token::Identifier(Identifier::RBrace)) => {
                     return_expression = Some(Box::new(expr));
                     break;
                 }
@@ -215,28 +243,41 @@ impl Parser {
             }
         }
 
-        self.consume_checked(TokenKind::Identifier(Identifier::RBrace))?;
+        let span = span.union(
+            self.consume_checked(Token::Identifier(Identifier::RBrace))?
+                .span,
+        );
 
-        Ok(Expr::Block(block, return_expression))
+        Ok(Spanned::new(Expr::Block(block, return_expression), span))
     }
 
     fn parse_let_expression(&mut self) -> ParseResult<Expr> {
-        self.consume_checked(TokenKind::Identifier(Identifier::Let))?;
+        let span_start = self
+            .consume_checked(Token::Identifier(Identifier::Let))?
+            .span;
         let var_name = self.parse_user_defined_identifier()?;
 
         let let_expr = {
-            self.consume_checked(TokenKind::Identifier(Identifier::Colon))?;
+            self.consume_checked(Token::Identifier(Identifier::Colon))?;
             let type_id = self.parse_type()?;
-            Expr::Let(var_name.clone(), type_id)
+
+            let span = var_name.span.union(type_id.span);
+            Spanned::new(Expr::Let(var_name.clone(), type_id), span)
         };
 
         let assigment_expr = {
-            self.consume_checked(TokenKind::Identifier(Identifier::Assignment))?;
+            self.consume_checked(Token::Identifier(Identifier::Assignment))?;
             let assign_to = self.parse_expression()?;
-            Expr::Assignment(var_name, Box::new(assign_to))
+
+            let span = var_name.span.union(assign_to.span);
+            Spanned::new(Expr::Assignment(var_name, Box::new(assign_to)), span)
         };
 
-        Ok(Expr::Block(vec![let_expr, assigment_expr], None))
+        let span = span_start.union(assigment_expr.span);
+        Ok(Spanned::new(
+            Expr::Block(vec![let_expr, assigment_expr], None),
+            span,
+        ))
     }
 }
 
@@ -246,28 +287,28 @@ impl Parser {
 impl Parser {
     fn parse_user_defined_identifier(&mut self) -> ParseResult<String> {
         match self.peek()? {
-            Token {
-                kind: TokenKind::Identifier(Identifier::UserDefined(name)),
-                ..
+            Spanned::<Token> {
+                value: Token::Identifier(Identifier::UserDefined(name)),
+                span,
             } => {
                 self.input.advance();
-                Ok(name)
+                Ok(Spanned::new(name, span))
             }
-            tok => Err(Error::unexpected_token(tok.span, tok.kind, None)),
+            tok => Err(Error::unexpected_token(tok, None)),
         }
     }
 
     #[allow(dead_code)]
     fn parse_literal(&mut self) -> ParseResult<Literal> {
         match self.peek()? {
-            Token {
-                kind: TokenKind::Literal(literal),
-                ..
+            Spanned::<Token> {
+                value: Token::Literal(literal),
+                span,
             } => {
                 self.input.advance();
-                Ok(literal)
+                Ok(Spanned::new(literal, span))
             }
-            tok => Err(Error::unexpected_token(tok.span, tok.kind, None)),
+            tok => Err(Error::unexpected_token(tok, None)),
         }
     }
 
@@ -279,71 +320,81 @@ impl Parser {
     fn parse_function_args(&mut self) -> ParseResult<Vec<ArgumentDecl>> {
         let mut args = Vec::new();
 
-        self.consume_checked(TokenKind::Identifier(Identifier::LParen))?;
-        if self.is_next_token(TokenKind::Identifier(Identifier::RParen)) {
-            self.input.advance();
-            return Ok(args);
+        let l_paren_span = self
+            .consume_checked(Token::Identifier(Identifier::LParen))?
+            .span;
+
+        if let Ok(Spanned::<Token> { span, .. }) =
+            self.consume_checked(Token::Identifier(Identifier::RParen))
+        {
+            // No Params
+            return Ok(Spanned::new(vec![], l_paren_span.union(span)));
         }
 
         loop {
             let name = self.parse_user_defined_identifier()?;
-            self.consume_checked(TokenKind::Identifier(Identifier::Colon))?;
+            self.consume_checked(Token::Identifier(Identifier::Colon))?;
             let ty = self.parse_type()?;
             args.push((name, ty));
 
-            if self.is_next_token(TokenKind::Identifier(Identifier::Comma)) {
-                self.input.advance();
-            } else {
+            // No more comma. Next token must be RParen
+            if self
+                .consume_checked(Token::Identifier(Identifier::Comma))
+                .is_err()
+            {
                 break;
             }
         }
 
-        self.consume_checked(TokenKind::Identifier(Identifier::RParen))?;
+        let r_paren_span = self
+            .consume_checked(Token::Identifier(Identifier::RParen))?
+            .span;
 
-        Ok(args)
+        Ok(Spanned::new(args, l_paren_span.union(r_paren_span)))
     }
 
     fn parse_type(&mut self) -> ParseResult<TypeID> {
         match self.peek()? {
-            Token {
-                kind: TokenKind::Identifier(Identifier::UserDefined(type_name)),
-                ..
+            Spanned::<Token> {
+                value: Token::Identifier(Identifier::UserDefined(type_name)),
+                span,
             } => {
                 self.input.advance();
                 match type_name.as_str() {
-                    "int" => Ok(TypeID::Int),
-                    "float" => Ok(TypeID::Float),
-                    _ => Ok(TypeID::User(type_name)),
+                    "int" => Ok(Spanned::new(TypeID::Int, span)),
+                    "float" => Ok(Spanned::new(TypeID::Float, span)),
+                    _ => Ok(Spanned::new(TypeID::User(type_name), span)),
                 }
             }
-            tok => Err(Error::unexpected_token(tok.span, tok.kind, None)),
+            tok => Err(Error::unexpected_token(tok, None)),
         }
     }
 }
 // Parser helpers
 impl Parser {
-    fn is_next_token(&mut self, expected: TokenKind) -> bool {
-        self.peek().map_or(false, |t| t.kind == expected)
+    fn is_next_token(&mut self, expected: Token) -> bool {
+        self.peek().map_or(false, |t| t.value == expected)
     }
 
-    fn expect_token(&mut self, expected: TokenKind) -> ParseResult<()> {
-        let Token { kind, span } = self.peek()?;
+    #[allow(dead_code)]
+    fn expect_token(&mut self, expected: Token) -> ParseResult<Token> {
+        let token = self.peek()?;
 
-        if kind == expected {
-            Ok(())
+        if token.value == expected {
+            Ok(token)
         } else {
-            Err(Error::unexpected_token(span, kind, Some(expected)))
+            Err(Error::unexpected_token(token, Some(expected)))
         }
     }
 
-    fn consume_checked(&mut self, expected: TokenKind) -> ParseResult<()> {
-        let Token { kind, span } = self.peek()?;
+    fn consume_checked(&mut self, expected: Token) -> ParseResult<Token> {
+        let token = self.peek()?;
 
-        if kind == expected {
+        if token.value == expected {
             self.input.advance();
-            Ok(())
+            Ok(token)
         } else {
-            Err(Error::unexpected_token(span, kind, Some(expected)))
+            Err(Error::unexpected_token(token, Some(expected)))
         }
     }
 

@@ -1,11 +1,8 @@
 use std::fmt::Display;
 
 use crate::{
-    error::{Error, ErrorKind},
-    tokenizer::{
-        identifier::Identifier,
-        token::{Token, TokenKind},
-    },
+    error::{Error, ErrorKind, Spanned},
+    tokenizer::{identifier::Identifier, token::Token},
 };
 
 use super::expression::Expr;
@@ -20,13 +17,13 @@ pub enum BinaryOperator {
 
 #[derive(Debug, Clone)]
 pub struct BinaryExpression {
-    pub lhs: Box<Expr>,
-    pub op: BinaryOperator,
-    pub rhs: Box<Expr>,
+    pub lhs: Box<Spanned<Expr>>,
+    pub op: Spanned<BinaryOperator>,
+    pub rhs: Box<Spanned<Expr>>,
 }
 
 impl BinaryExpression {
-    pub fn new(lhs: Expr, op: BinaryOperator, rhs: Expr) -> Self {
+    pub fn new(lhs: Spanned<Expr>, op: Spanned<BinaryOperator>, rhs: Spanned<Expr>) -> Self {
         Self {
             lhs: Box::new(lhs),
             op,
@@ -44,17 +41,26 @@ impl BinaryOperator {
     }
 }
 
-impl TryFrom<Token> for BinaryOperator {
+impl TryFrom<Spanned<Token>> for BinaryOperator {
     type Error = Error;
 
-    fn try_from(value: Token) -> Result<Self, Self::Error> {
-        match value.kind {
-            TokenKind::Identifier(Identifier::Plus) => Ok(Self::Add),
-            TokenKind::Identifier(Identifier::Minus) => Ok(Self::Substract),
-            TokenKind::Identifier(Identifier::Star) => Ok(Self::Multiply),
-            TokenKind::Identifier(Identifier::Slash) => Ok(Self::Divide),
-            _ => Err(Error::new(value.span, ErrorKind::InvalidOperator)),
+    fn try_from(Spanned::<Token> { value, span }: Spanned<Token>) -> Result<Self, Self::Error> {
+        match value {
+            Token::Identifier(Identifier::Plus) => Ok(BinaryOperator::Add),
+            Token::Identifier(Identifier::Minus) => Ok(BinaryOperator::Substract),
+            Token::Identifier(Identifier::Star) => Ok(BinaryOperator::Multiply),
+            Token::Identifier(Identifier::Slash) => Ok(BinaryOperator::Divide),
+            _ => Err(Error::new(span, ErrorKind::InvalidOperator)),
         }
+    }
+}
+
+impl TryFrom<Spanned<Token>> for Spanned<BinaryOperator> {
+    type Error = Error;
+
+    fn try_from(token: Spanned<Token>) -> Result<Self, Self::Error> {
+        let span = token.span;
+        BinaryOperator::try_from(token).map(|op| Spanned::new(op, span))
     }
 }
 
