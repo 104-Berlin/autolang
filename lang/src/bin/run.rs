@@ -16,12 +16,14 @@ fn main() {
         println!("{:?}", tok);
     }*/
 
-    match Parser::new(FileInputStream::new(file))
+    let execution = Parser::new(FileInputStream::new(file))
         .parse_module()
         .and_then(|module| {
             let mut ctx = ExecutionContext::new(&module);
             ctx.execute()
-        }) {
+        });
+
+    match execution {
         Ok(result) => {
             println!("Programm exited successfully with result: {}", result.value);
         }
