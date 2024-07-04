@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 source-span = {version = "2.7.0", default-features = false}
+utf8-chars = "3.0.3"

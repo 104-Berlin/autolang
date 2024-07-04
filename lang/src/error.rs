@@ -43,7 +43,10 @@ impl Error {
         self.span
     }
 
-    pub fn show_error(&self, source: &str) {
+    pub fn show_error<I>(&self, source: I)
+    where
+        I: Iterator<Item = ParseResult<char>>,
+    {
         // Code to extract the source code from the span
         /*let source_buffer = SourceBuffer::new(
             source.chars().map(|c| Ok::<char, ()>(c)),
@@ -56,7 +59,7 @@ impl Error {
         fmt.add(self.span, Some(message), Style::Error);
         let formatted = fmt
             .render(
-                source.chars().map(Ok::<char, ()>),
+                source,
                 self.span.aligned(),
                 &Tokenizer::METRICS,
             )

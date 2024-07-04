@@ -1,12 +1,16 @@
 use binary_expression::{BinaryExpression, BinaryOperator};
 use expression::Expr;
+use function::{ArgumentDecl, FunctionDecl, FunctionProto};
 use source_span::Span;
+use type_def::{Type, TypeID};
 
 use crate::{
     error::{Error, ErrorKind, ParseResult},
     input_stream::InputStream,
+    module::Module,
     tokenizer::{
         identifier::Identifier,
+        literal::Literal,
         token::{Token, TokenKind},
         TokenizerStream,
     },
@@ -28,12 +32,29 @@ impl Parser {
             input: Box::new(TokenizerStream::new(input)),
         }
     }
+}
 
-    pub fn parse(&mut self) -> ParseResult<Expr> {
+impl TryInto<Expr> for Parser {
+    type Error = Error;
+
+    fn try_into(mut self) -> Result<Expr, Self::Error> {
         self.parse_expression()
     }
+}
+
+impl TryInto<Module> for Parser {
+    type Error = Error;
+
+    fn try_into(mut self) -> Result<Module, Self::Error> {
+        self.parse_module()
+    }
+}
 
     fn parse_expression(&mut self) -> ParseResult<Expr> {
+// -------------------------------------------------------------------------------------------
+// Parse Expression
+impl Parser {
+    pub fn parse_expression(&mut self) -> ParseResult<Expr> {
         let first = self.parse_primary_expression()?;
         self.parse_binary_expression(first, 0)
     }
@@ -76,7 +97,7 @@ impl Parser {
                     args.push(input);
                 }
 
-                if self.is_next_token(|t| matches!(t, TokenKind::Identifier(Identifier::Comma))) {
+                if self.is_next_token(TokenKind::Identifier(Identifier::Comma)) {
                     self.input.advance();
                 } else {
                     break;
@@ -121,12 +142,43 @@ impl Parser {
         }
         Ok(lhs)
     }
+}
 
-    fn is_next_token<F>(&mut self, p: F) -> bool
-    where
-        F: FnOnce(TokenKind) -> bool,
-    {
-        self.peek().map_or(false, |t| p(t.kind))
+// -------------------------------------------------------------------------------------------
+// Simple Parsers
+
+impl Parser {
+    fn parse_user_defined_identifier(&mut self) -> ParseResult<String> {
+        match self.peek()? {
+            Token {
+                kind: TokenKind::Identifier(Identifier::UserDefined(name)),
+                ..
+            } => {
+                self.input.advance();
+                Ok(name)
+            }
+            tok => Err(Error::unexpected_token(tok.span, tok.kind, None)),
+        }
+    }
+
+    fn parse_literal(&mut self) -> ParseResult<Literal> {
+        match self.peek()? {
+            Token {
+                kind: TokenKind::Literal(literal),
+                ..
+            } => {
+                self.input.advance();
+                Ok(literal)
+            }
+            tok => Err(Error::unexpected_token(tok.span, tok.kind, None)),
+        }
+    }
+
+}
+// Parser helpers
+impl Parser {
+    fn is_next_token(&mut self, expected: TokenKind) -> bool {
+        self.peek().map_or(false, |t| t.kind == expected)
     }
 
     fn expect_token(&mut self, expected: TokenKind) -> ParseResult<()> {
