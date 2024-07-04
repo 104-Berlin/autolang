@@ -98,8 +98,14 @@ impl Parser {
 // Parse Expression
 impl Parser {
     pub fn parse_expression(&mut self) -> ParseResult<Expr> {
-        let first = self.parse_primary_expression()?;
-        self.parse_binary_expression(first, 0)
+        match self.peek()?.kind {
+            TokenKind::Identifier(Identifier::Let) => self.parse_let_expression(),
+            TokenKind::Identifier(Identifier::LBrace) => self.parse_block_expression(),
+            _ => {
+                let lhs = self.parse_primary_expression()?;
+                self.parse_binary_expression(lhs, 0)
+            }
+        }
     }
 
     fn parse_primary_expression(&mut self) -> ParseResult<Expr> {
@@ -191,13 +197,18 @@ impl Parser {
 
         self.consume_checked(TokenKind::Identifier(Identifier::LBrace))?;
 
+        let mut return_expression = None;
+
         while !self.is_next_token(TokenKind::Identifier(Identifier::RBrace)) {
-            block.push(self.parse_expression()?);
+            let expr = self.parse_expression()?;
 
             // We expect a semicolon after each expression in a block, or we are at the end of the block.
             match self.consume_checked(TokenKind::Identifier(Identifier::Semicolon)) {
-                Ok(_) => {}
+                Ok(_) => {
+                    block.push(expr);
+                }
                 Err(_) if self.is_next_token(TokenKind::Identifier(Identifier::RBrace)) => {
+                    return_expression = Some(Box::new(expr));
                     break;
                 }
                 Err(e) => return Err(e),
@@ -206,7 +217,26 @@ impl Parser {
 
         self.consume_checked(TokenKind::Identifier(Identifier::RBrace))?;
 
-        Ok(Expr::Block(block))
+        Ok(Expr::Block(block, return_expression))
+    }
+
+    fn parse_let_expression(&mut self) -> ParseResult<Expr> {
+        self.consume_checked(TokenKind::Identifier(Identifier::Let))?;
+        let var_name = self.parse_user_defined_identifier()?;
+
+        let let_expr = {
+            self.consume_checked(TokenKind::Identifier(Identifier::Colon))?;
+            let type_id = self.parse_type()?;
+            Expr::Let(var_name.clone(), type_id)
+        };
+
+        let assigment_expr = {
+            self.consume_checked(TokenKind::Identifier(Identifier::Assignment))?;
+            let assign_to = self.parse_expression()?;
+            Expr::Assignment(var_name, Box::new(assign_to))
+        };
+
+        Ok(Expr::Block(vec![let_expr, assigment_expr], None))
     }
 }
 

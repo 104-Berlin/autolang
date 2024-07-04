@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::tokenizer::literal::Literal;
 
-use super::binary_expression::BinaryExpression;
+use super::{binary_expression::BinaryExpression, type_def::TypeID};
 
 // Something that can yield a value
 #[derive(Debug, Clone)]
@@ -14,6 +14,7 @@ pub enum Expr {
     Variable(String),
 
     Assignment(String, Box<Expr>),
+    Let(String, TypeID),
 
     Block(Vec<Expr>, Option<Box<Expr>>),
 }
@@ -41,6 +42,7 @@ impl Expr {
                 eprintln!("Evaluating and assignment is not implemented yet!");
                 0
             }
+            Expr::Let(_, _) => 0,
             Expr::Binary(BinaryExpression { lhs, op, rhs }) => {
                 let lhs = lhs.evaluate();
                 let rhs = rhs.evaluate();
@@ -74,6 +76,7 @@ impl Display for Expr {
                 write!(f, "({} {} {})", expr.lhs, expr.op, expr.rhs)
             }
             Expr::Assignment(var, expr) => write!(f, "{} = {}", var, expr),
+            Expr::Let(var, type_id) => write!(f, "let {}: {}", var, type_id),
             Expr::Literal(literal) => write!(
                 f,
                 "{}",
