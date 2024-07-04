@@ -35,8 +35,6 @@ fn main() {
             let file = OpenOptions::new().read(true).open(&input_file).unwrap();
             let mut reader = BufReader::new(file);
 
-            //let mut content = std::fs::read_to_string(input_file).unwrap();
-
             e.show_error(
                 reader
                     .chars()

@@ -226,6 +226,10 @@ impl Parser {
         let mut args = Vec::new();
 
         self.consume_checked(TokenKind::Identifier(Identifier::LParen))?;
+        if self.is_next_token(TokenKind::Identifier(Identifier::RParen)) {
+            self.input.advance();
+            return Ok(args);
+        }
 
         loop {
             let name = self.parse_user_defined_identifier()?;
