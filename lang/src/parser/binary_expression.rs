@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
 use crate::{
-    error::{Error, ErrorKind, Spanned},
+    error::{Error, ErrorKind},
+    spanned::Spanned,
     tokenizer::{identifier::Identifier, token::Token},
 };
 

@@ -5,7 +5,7 @@ use literal::Literal;
 use source_span::{DefaultMetrics, Span};
 use token::Token;
 
-use crate::{error::Spanned, input_stream::InputStream};
+use crate::{input_stream::InputStream, spanned::Spanned};
 
 pub mod identifier;
 pub mod literal;

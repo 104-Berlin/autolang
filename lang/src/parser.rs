@@ -5,9 +5,10 @@ use source_span::Span;
 use type_def::TypeID;
 
 use crate::{
-    error::{Error, ErrorKind, ParseResult, Spanned},
+    error::{Error, ErrorKind, ParseResult},
     input_stream::InputStream,
     module::Module,
+    spanned::Spanned,
     tokenizer::{identifier::Identifier, literal::Literal, token::Token, TokenizerStream},
 };
 
@@ -150,15 +151,18 @@ impl Parser {
             span,
         }) = self.peek()
         {
+            // Parse function call
             self.input.advance();
             let mut args = Vec::new();
+            let mut args_span = span.next();
             loop {
                 if let Ok(input) = self.parse_expression() {
+                    args_span.append(input.span);
                     args.push(input);
                 }
 
-                if self.is_next_token(Token::Identifier(Identifier::Comma)) {
-                    self.input.advance();
+                if let Ok(comma) = self.consume_checked(Token::Identifier(Identifier::Comma)) {
+                    args_span.append(comma.span);
                 } else {
                     break;
                 }
@@ -167,9 +171,11 @@ impl Parser {
                 .consume_checked(Token::Identifier(Identifier::RParen))?
                 .span;
 
+            let span = identifier.span.union(r_paren_span);
+
             Ok(Spanned::new(
-                Expr::FunctionCall(identifier),
-                span.union(r_paren_span),
+                Expr::FunctionCall(identifier, Spanned::new(args, args_span)),
+                span,
             ))
         } else {
             let span = identifier.span;
@@ -257,25 +263,15 @@ impl Parser {
             .span;
         let var_name = self.parse_user_defined_identifier()?;
 
-        let let_expr = {
-            self.consume_checked(Token::Identifier(Identifier::Colon))?;
-            let type_id = self.parse_type()?;
+        self.consume_checked(Token::Identifier(Identifier::Colon))?;
+        let type_id = self.parse_type()?;
 
-            let span = var_name.span.union(type_id.span);
-            Spanned::new(Expr::Let(var_name.clone(), type_id), span)
-        };
+        self.consume_checked(Token::Identifier(Identifier::Assignment))?;
+        let assign_to = self.parse_expression()?;
 
-        let assigment_expr = {
-            self.consume_checked(Token::Identifier(Identifier::Assignment))?;
-            let assign_to = self.parse_expression()?;
-
-            let span = var_name.span.union(assign_to.span);
-            Spanned::new(Expr::Assignment(var_name, Box::new(assign_to)), span)
-        };
-
-        let span = span_start.union(assigment_expr.span);
+        let span = span_start.union(assign_to.span);
         Ok(Spanned::new(
-            Expr::Block(vec![let_expr, assigment_expr], None),
+            Expr::Let(var_name.clone(), type_id, Box::new(assign_to)),
             span,
         ))
     }
@@ -294,7 +290,7 @@ impl Parser {
                 self.input.advance();
                 Ok(Spanned::new(name, span))
             }
-            tok => Err(Error::unexpected_token(tok, None)),
+            tok => Err(Error::new_unexpected_token(tok, None)),
         }
     }
 
@@ -308,7 +304,7 @@ impl Parser {
                 self.input.advance();
                 Ok(Spanned::new(literal, span))
             }
-            tok => Err(Error::unexpected_token(tok, None)),
+            tok => Err(Error::new_unexpected_token(tok, None)),
         }
     }
 
@@ -366,7 +362,7 @@ impl Parser {
                     _ => Ok(Spanned::new(TypeID::User(type_name), span)),
                 }
             }
-            tok => Err(Error::unexpected_token(tok, None)),
+            tok => Err(Error::new_unexpected_token(tok, None)),
         }
     }
 }
@@ -383,7 +379,7 @@ impl Parser {
         if token.value == expected {
             Ok(token)
         } else {
-            Err(Error::unexpected_token(token, Some(expected)))
+            Err(Error::new_unexpected_token(token, Some(expected)))
         }
     }
 
@@ -394,7 +390,7 @@ impl Parser {
             self.input.advance();
             Ok(token)
         } else {
-            Err(Error::unexpected_token(token, Some(expected)))
+            Err(Error::new_unexpected_token(token, Some(expected)))
         }
     }
 

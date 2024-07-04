@@ -1,4 +1,4 @@
-use lang::{input_stream::FileInputStream, parser::Parser};
+use lang::{execution::ExecutionContext, input_stream::FileInputStream, parser::Parser};
 use std::{env, fs::OpenOptions, io::BufReader};
 use utf8_chars::BufReadCharsExt;
 
@@ -16,16 +16,14 @@ fn main() {
         println!("{:?}", tok);
     }*/
 
-    match Parser::new(FileInputStream::new(file)).parse_module() {
-        Ok(module) => {
-            for func in module.value.functions() {
-                let func = &func.value;
-                println!("Function: {}", func.proto.value.name.value);
-                for stmt in func.proto.value.arguments.value.iter() {
-                    println!("arg {}: {};", stmt.0.value, stmt.1.value);
-                }
-                println!("Body: {}", func.body.value);
-            }
+    match Parser::new(FileInputStream::new(file))
+        .parse_module()
+        .and_then(|module| {
+            let mut ctx = ExecutionContext::new(&module);
+            ctx.execute()
+        }) {
+        Ok(result) => {
+            println!("Programm exited successfully with result: {}", result.value);
         }
         Err(e) => {
             let file = OpenOptions::new().read(true).open(&input_file).unwrap();

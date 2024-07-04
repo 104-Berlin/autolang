@@ -1,4 +1,4 @@
-use crate::error::Spanned;
+use crate::spanned::Spanned;
 
 use super::{expression::Expr, type_def::TypeID};
 

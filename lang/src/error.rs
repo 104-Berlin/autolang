@@ -3,19 +3,11 @@ use source_span::{
     Position, Span,
 };
 
-use crate::tokenizer::{token::Token, Tokenizer};
-
-#[derive(Clone, Debug)]
-pub struct Spanned<T> {
-    pub span: Span,
-    pub value: T,
-}
-
-impl<T> Spanned<T> {
-    pub fn new(value: T, span: Span) -> Spanned<T> {
-        Spanned { span, value }
-    }
-}
+use crate::{
+    parser::type_def::TypeID,
+    spanned::Spanned,
+    tokenizer::{token::Token, Tokenizer},
+};
 
 pub type ParseResult<T> = Result<Spanned<T>, Error>;
 
@@ -27,13 +19,29 @@ pub struct Error {
 
 #[derive(Debug)]
 pub enum ErrorKind {
+    // Parse Errors
     UnexpectedToken {
         found: Token,
         expected: Option<Token>,
     },
     InvalidOperator,
-
     UnexpectedEOF,
+
+    // Execution Errors
+    InvalidNumberOfArguments {
+        expected: usize,
+        found: usize,
+    },
+    VariableNotFound(String),
+    FunctionNotFound(String),
+    VariableAlreadyDeclared(String),
+
+    TypeMismatch {
+        expected: TypeID,
+        found: TypeID,
+    },
+
+    NoMainFunction,
 }
 
 impl std::error::Error for ErrorKind {}
@@ -43,7 +51,7 @@ impl Error {
         Error { span, kind }
     }
 
-    pub fn unexpected_token(
+    pub fn new_unexpected_token(
         Spanned::<Token> { value, span }: Spanned<Token>,
         expected: Option<Token>,
     ) -> Error {
@@ -54,6 +62,17 @@ impl Error {
                 expected,
             },
         )
+    }
+
+    pub fn new_invalid_number_of_arguments(span: Span, expected: usize, found: usize) -> Error {
+        Error::new(
+            span,
+            ErrorKind::InvalidNumberOfArguments { expected, found },
+        )
+    }
+
+    pub fn new_type_mismatch(span: Span, expected: TypeID, found: TypeID) -> Error {
+        Error::new(span, ErrorKind::TypeMismatch { expected, found })
     }
 
     pub fn kind(&self) -> &ErrorKind {
@@ -84,8 +103,8 @@ impl Error {
 
         let mut fmt = Formatter::new();
         fmt.add(self.span, Some(message), Style::Error);
-        let formatted = fmt.render(source, full_span, &Tokenizer::METRICS).unwrap();
 
+        let formatted = fmt.render(source, full_span, &Tokenizer::METRICS).unwrap();
         println!("{}", formatted);
     }
 }
@@ -117,6 +136,26 @@ impl std::fmt::Display for ErrorKind {
             }
             Self::InvalidOperator => write!(f, "Invalid operator"),
             Self::UnexpectedEOF => write!(f, "Unexpected end of file"),
+            Self::InvalidNumberOfArguments {
+                expected, found, ..
+            } => write!(
+                f,
+                "Invalid number of arguments, expected {}, found {}",
+                expected, found
+            ),
+            Self::VariableNotFound(name) => write!(f, "Variable '{}' was not found", name),
+            Self::FunctionNotFound(name) => write!(f, "Function '{}' was not found", name),
+            Self::VariableAlreadyDeclared(name) => {
+                write!(f, "Variable '{}' already declared", name)
+            }
+            Self::TypeMismatch { expected, found } => {
+                write!(
+                    f,
+                    "Type mismatch! Expected '{}', found '{}'",
+                    expected, found
+                )
+            }
+            Self::NoMainFunction => write!(f, "No main function found"),
         }
     }
 }
