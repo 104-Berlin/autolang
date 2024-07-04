@@ -15,7 +15,7 @@ pub enum Expr {
 
     Assignment(String, Box<Expr>),
 
-    Block(Vec<Expr>),
+    Block(Vec<Expr>, Option<Box<Expr>>),
 }
 
 impl Expr {
@@ -52,12 +52,15 @@ impl Expr {
                     crate::parser::binary_expression::BinaryOperator::Divide => lhs / rhs,
                 }
             }
-            Expr::Block(expr) => {
-                let mut last = 0;
+            Expr::Block(expr, return_expr) => {
                 for e in expr {
-                    last = e.evaluate();
+                    e.evaluate();
                 }
-                last
+                if let Some(return_expr) = return_expr {
+                    return_expr.evaluate()
+                } else {
+                    0
+                }
             }
         }
     }
@@ -80,10 +83,13 @@ impl Display for Expr {
                 }
             ),
             Expr::Variable(name) => write!(f, "{}", name),
-            Expr::Block(expr) => {
+            Expr::Block(expr, return_expr) => {
                 write!(f, "{{")?;
                 for e in expr {
-                    write!(f, "{}", e)?;
+                    write!(f, "{}, ", e)?;
+                }
+                if let Some(return_expr) = return_expr {
+                    write!(f, "{}", return_expr)?;
                 }
                 write!(f, "}}")
             }
