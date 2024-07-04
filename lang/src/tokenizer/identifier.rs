@@ -20,6 +20,8 @@ pub enum Identifier {
 
     /// ':'
     Colon,
+    /// '::'
+    DoubleColon,
     /// ';'
     Semicolon,
     /// '.'
@@ -59,6 +61,9 @@ pub enum Identifier {
     LogicalOr,
     /// '!'
     LogicalNot,
+
+    /// '->'
+    Arrow,
 
     /// Built-in function
     /// 'fn'
@@ -115,6 +120,7 @@ impl Display for Identifier {
             Identifier::LBracket => write!(f, "["),
             Identifier::RBracket => write!(f, "]"),
             Identifier::Colon => write!(f, ":"),
+            Identifier::DoubleColon => write!(f, "::"),
             Identifier::Semicolon => write!(f, ";"),
             Identifier::Dot => write!(f, "."),
             Identifier::Comma => write!(f, ","),
@@ -133,6 +139,7 @@ impl Display for Identifier {
             Identifier::LogicalAnd => write!(f, "&&"),
             Identifier::LogicalOr => write!(f, "||"),
             Identifier::LogicalNot => write!(f, "!"),
+            Identifier::Arrow => write!(f, "->"),
             Identifier::Function => write!(f, "fn"),
             Identifier::Let => write!(f, "let"),
             Identifier::True => write!(f, "true"),

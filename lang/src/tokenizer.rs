@@ -39,77 +39,128 @@ impl Tokenizer {
         self.span.push(current_char, &Self::METRICS);
 
         match current_char {
+            // '('
             '(' => Some(Spanned::new(
                 Token::Identifier(Identifier::LParen),
                 self.span,
             )),
+            // ')'
             ')' => Some(Spanned::new(
                 Token::Identifier(Identifier::RParen),
                 self.span,
             )),
+            // '{'
             '{' => Some(Spanned::new(
                 Token::Identifier(Identifier::LBrace),
                 self.span,
             )),
+            // '}'
             '}' => Some(Spanned::new(
                 Token::Identifier(Identifier::RBrace),
                 self.span,
             )),
+            // '['
             '[' => Some(Spanned::new(
                 Token::Identifier(Identifier::LBracket),
                 self.span,
             )),
+            // ']'
             ']' => Some(Spanned::new(
                 Token::Identifier(Identifier::RBracket),
                 self.span,
             )),
+            // '::'
+            ':' if self.consume_checked(':').is_some() => Some(Spanned::new(
+                Token::Identifier(Identifier::DoubleColon),
+                self.span,
+            )),
+            // ':'
             ':' => Some(Spanned::new(
                 Token::Identifier(Identifier::Colon),
                 self.span,
             )),
+            // ';'
             ';' => Some(Spanned::new(
                 Token::Identifier(Identifier::Semicolon),
                 self.span,
             )),
+            // '.'
             '.' => Some(Spanned::new(Token::Identifier(Identifier::Dot), self.span)),
+            // ','
             ',' => Some(Spanned::new(
                 Token::Identifier(Identifier::Comma),
                 self.span,
             )),
+            // '+'
             '+' => Some(Spanned::new(Token::Identifier(Identifier::Plus), self.span)),
+            // '->'
+            '-' if self.consume_checked('>').is_some() => Some(Spanned::new(
+                Token::Identifier(Identifier::Arrow),
+                self.span,
+            )),
+            // '-'
             '-' => Some(Spanned::new(
                 Token::Identifier(Identifier::Minus),
                 self.span,
             )),
+            // '*'
             '*' => Some(Spanned::new(Token::Identifier(Identifier::Star), self.span)),
+            // '/'
             '/' => Some(Spanned::new(
                 Token::Identifier(Identifier::Slash),
                 self.span,
             )),
+            // '%'
             '%' => Some(Spanned::new(
                 Token::Identifier(Identifier::Modulus),
                 self.span,
             )),
+            // '=='
+            '=' if self.consume_checked('=').is_some() => Some(Spanned::new(
+                Token::Identifier(Identifier::Equals),
+                self.span,
+            )),
+            // '='
             '=' => Some(Spanned::new(
                 Token::Identifier(Identifier::Assignment),
                 self.span,
             )),
+            // '!='
+            '!' if self.consume_checked('=').is_some() => Some(Spanned::new(
+                Token::Identifier(Identifier::NotEquals),
+                self.span,
+            )),
+            // '!'
             '!' => Some(Spanned::new(
                 Token::Identifier(Identifier::LogicalNot),
                 self.span,
             )),
-            '&' => Some(Spanned::new(
+            // '&&'
+            '&' if self.consume_checked('&').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::LogicalAnd),
                 self.span,
             )),
-            '|' => Some(Spanned::new(
+            // '||'
+            '|' if self.consume_checked('|').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::LogicalOr),
                 self.span,
             )),
+            // '<='
+            '<' if self.consume_checked('=').is_some() => Some(Spanned::new(
+                Token::Identifier(Identifier::LessThanOrEqual),
+                self.span,
+            )),
+            // '<'
             '<' => Some(Spanned::new(
                 Token::Identifier(Identifier::LessThan),
                 self.span,
             )),
+            // '>='
+            '>' if self.consume_checked('=').is_some() => Some(Spanned::new(
+                Token::Identifier(Identifier::GreaterThanOrEqual),
+                self.span,
+            )),
+            // '>'
             '>' => Some(Spanned::new(
                 Token::Identifier(Identifier::GreaterThan),
                 self.span,
@@ -165,6 +216,14 @@ impl Tokenizer {
             Token::Identifier(Identifier::from_string(identifier)),
             self.span,
         )
+    }
+}
+
+impl Tokenizer {
+    fn consume_checked(&mut self, expected: char) -> Option<char> {
+        self.input.consume_checked(expected).inspect(|c| {
+            self.span.push(*c, &Self::METRICS);
+        })
     }
 }
 
