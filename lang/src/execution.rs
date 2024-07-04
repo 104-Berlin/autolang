@@ -39,10 +39,8 @@ impl<'a> ExecutionContext<'a> {
             .iter_mut()
             .find(|func| func.value.proto.value.name.value == "main")
         {
-            let name = main.value.proto.value.name.clone();
-            name
+            main.value.proto.value.name.clone()
         } else {
-            eprintln!("Error: No main function found");
             return Err(Error::new(self.span, ErrorKind::NoMainFunction));
         };
 
@@ -96,14 +94,11 @@ impl<'a> ExecutionContext<'a> {
             .iter()
             .zip(input_values)
         {
-            let value = Value {
-                value: Box::new(value?),
-                type_id: arg_type.value.clone(),
-            };
+            // Make spanned tuple of the variable name and the value
+            // The Span will be the span of the expression which is the input for the function call
+            let value = value?.map_value(|val| (arg_name.value.clone(), val));
 
-            scope
-                .variables
-                .push(Spanned::new((arg_name.value.clone(), value), arg_name.span));
+            scope.variables.push(value);
         }
 
         // Push scope for the body
