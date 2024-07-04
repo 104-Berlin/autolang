@@ -15,7 +15,7 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn evalutae(&self) -> i64 {
+    pub fn evaluate(&self) -> i64 {
         match self {
             Expr::FunctionCall(name) | Expr::Variable(name) => {
                 println!(
@@ -32,8 +32,8 @@ impl Expr {
                 }
             },
             Expr::Binary(BinaryExpression { lhs, op, rhs }) => {
-                let lhs = lhs.evalutae();
-                let rhs = rhs.evalutae();
+                let lhs = lhs.evaluate();
+                let rhs = rhs.evaluate();
 
                 match op {
                     crate::parser::binary_expression::BinaryOperator::Add => lhs + rhs,

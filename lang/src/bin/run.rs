@@ -2,6 +2,7 @@ use lang::{
     error::{Error, ErrorKind},
     input_stream::FileInputStream,
     parser::Parser,
+    tokenizer::Tokenizer,
 };
 use source_span::Span;
 use std::{env, fs::OpenOptions, io::BufReader};
@@ -16,11 +17,19 @@ fn main() {
     };
 
     let file = OpenOptions::new().read(true).open(&input_file).unwrap();
+    /*let mut input_stream = Tokenizer::new(FileInputStream::new(file));
+        for tok in input_stream {
+        println!("{:?}", tok);
+    }*/
 
-    match Parser::new(FileInputStream::new(file)).parse_expression() {
+    match Parser::new(FileInputStream::new(file)).parse_module() {
         Ok(module) => {
-            println!("{}", module);
-            println!("{:?}", module.evalutae());
+            for func in module.functions() {
+                println!("Function: {}", func.proto.name);
+                for stmt in func.proto.arguments.iter() {
+                    println!("let {}: {};", stmt.0, stmt.1);
+                }
+            }
         }
         Err(e) => {
             let file = OpenOptions::new().read(true).open(&input_file).unwrap();

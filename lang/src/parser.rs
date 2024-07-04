@@ -56,7 +56,7 @@ impl Parser {
     pub fn parse_module(&mut self) -> ParseResult<Module> {
         let mut module = Module::new("main");
 
-        while let Ok(Token { kind, .. }) = self.peek() {
+        while let Ok(Token { kind, span }) = self.peek() {
             match kind {
                 TokenKind::Identifier(Identifier::Function) => {
                     self.input.advance();
@@ -65,7 +65,7 @@ impl Parser {
                 }
                 _ => {
                     return Err(Error::new(
-                        Span::default(),
+                        span,
                         ErrorKind::UnexpectedToken {
                             found: kind,
                             expected: None,

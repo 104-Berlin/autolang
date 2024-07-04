@@ -6,7 +6,7 @@ fn main() {
     match Parser::new(source).parse_expression() {
         Ok(tree) => {
             println!("{}", tree);
-            println!("Result: {}", tree.evalutae());
+            println!("Result: {}", tree.evaluate());
         }
         Err(e) => e.show_error(source.chars().map(Ok::<char, Error>)),
     }
