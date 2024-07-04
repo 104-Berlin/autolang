@@ -1,0 +1,27 @@
+use source_span::Span;
+
+#[derive(Clone, Debug)]
+pub struct Spanned<T> {
+    pub span: Span,
+    pub value: T,
+}
+
+impl<T> Spanned<T> {
+    pub fn new(value: T, span: Span) -> Spanned<T> {
+        Spanned { span, value }
+    }
+
+    pub fn map_value<U>(self, f: impl FnOnce(T) -> U) -> Spanned<U> {
+        Spanned {
+            span: self.span,
+            value: f(self.value),
+        }
+    }
+
+    pub fn map_span(self, f: impl FnOnce(Span) -> Span) -> Spanned<T> {
+        Spanned {
+            span: f(self.span),
+            value: self.value,
+        }
+    }
+}

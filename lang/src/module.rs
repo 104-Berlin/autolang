@@ -1,4 +1,4 @@
-use crate::{error::Spanned, parser::function::FunctionDecl};
+use crate::{parser::function::FunctionDecl, spanned::Spanned};
 
 pub struct Module {
     name: String,
