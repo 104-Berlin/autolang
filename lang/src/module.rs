@@ -1,8 +1,8 @@
-use crate::parser::function::FunctionDeclaration;
+use crate::parser::function::FunctionDecl;
 
 pub struct Module {
     name: String,
-    functions: Vec<FunctionDeclaration>,
+    functions: Vec<FunctionDecl>,
 }
 
 impl Module {
@@ -17,11 +17,11 @@ impl Module {
         &self.name
     }
 
-    pub fn add_function(&mut self, func: FunctionDeclaration) {
+    pub fn add_function(&mut self, func: FunctionDecl) {
         self.functions.push(func);
     }
 
-    pub fn functions(&self) -> &[FunctionDeclaration] {
+    pub fn functions(&self) -> &[FunctionDecl] {
         &self.functions
     }
 }

@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::tokenizer::literal::Literal;
 
-use super::binary_expression::BinaryExpression;
+use super::{binary_expression::BinaryExpression, type_def::TypeID};
 
 // Something that can yield a value
 #[derive(Debug, Clone)]
@@ -12,10 +12,15 @@ pub enum Expr {
 
     Literal(Literal),
     Variable(String),
+
+    Assignment(String, Box<Expr>),
+    Let(String, TypeID),
+
+    Block(Vec<Expr>, Option<Box<Expr>>),
 }
 
 impl Expr {
-    pub fn evalutae(&self) -> i64 {
+    pub fn evaluate(&self) -> i64 {
         match self {
             Expr::FunctionCall(name) | Expr::Variable(name) => {
                 println!(
@@ -31,15 +36,32 @@ impl Expr {
                     val.trunc() as i64
                 }
             },
+            Expr::Assignment(var, expr) => {
+                let val = expr.evaluate();
+                println!("Assigning {} to {}", val, var);
+                eprintln!("Evaluating and assignment is not implemented yet!");
+                0
+            }
+            Expr::Let(_, _) => 0,
             Expr::Binary(BinaryExpression { lhs, op, rhs }) => {
-                let lhs = lhs.evalutae();
-                let rhs = rhs.evalutae();
+                let lhs = lhs.evaluate();
+                let rhs = rhs.evaluate();
 
                 match op {
                     crate::parser::binary_expression::BinaryOperator::Add => lhs + rhs,
                     crate::parser::binary_expression::BinaryOperator::Substract => lhs - rhs,
                     crate::parser::binary_expression::BinaryOperator::Multiply => lhs * rhs,
                     crate::parser::binary_expression::BinaryOperator::Divide => lhs / rhs,
+                }
+            }
+            Expr::Block(expr, return_expr) => {
+                for e in expr {
+                    e.evaluate();
+                }
+                if let Some(return_expr) = return_expr {
+                    return_expr.evaluate()
+                } else {
+                    0
                 }
             }
         }
@@ -53,6 +75,8 @@ impl Display for Expr {
             Expr::Binary(expr) => {
                 write!(f, "({} {} {})", expr.lhs, expr.op, expr.rhs)
             }
+            Expr::Assignment(var, expr) => write!(f, "{} = {}", var, expr),
+            Expr::Let(var, type_id) => write!(f, "let {}: {}", var, type_id),
             Expr::Literal(literal) => write!(
                 f,
                 "{}",
@@ -62,6 +86,16 @@ impl Display for Expr {
                 }
             ),
             Expr::Variable(name) => write!(f, "{}", name),
+            Expr::Block(expr, return_expr) => {
+                write!(f, "{{")?;
+                for e in expr {
+                    write!(f, "{}, ", e)?;
+                }
+                if let Some(return_expr) = return_expr {
+                    write!(f, "{}", return_expr)?;
+                }
+                write!(f, "}}")
+            }
         }
     }
 }

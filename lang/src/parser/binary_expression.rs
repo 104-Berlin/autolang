@@ -38,8 +38,8 @@ impl BinaryExpression {
 impl BinaryOperator {
     pub fn precedence(&self) -> i16 {
         match self {
-            BinaryOperator::Add | BinaryOperator::Substract => 10,
-            BinaryOperator::Multiply | BinaryOperator::Divide => 20,
+            BinaryOperator::Add | BinaryOperator::Substract => 100,
+            BinaryOperator::Multiply | BinaryOperator::Divide => 200,
         }
     }
 }

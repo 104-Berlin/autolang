@@ -1,5 +1,15 @@
-pub struct FunctionDeclaration {
+use super::{expression::Expr, type_def::TypeID};
+
+pub type ArgumentDecl = (String, TypeID);
+
+#[derive(Debug, Clone)]
+pub struct FunctionProto {
     pub name: String,
-    //arguments: Vec<Type>,
-    // body: Option<Body>
+    pub arguments: Vec<ArgumentDecl>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionDecl {
+    pub proto: FunctionProto,
+    pub body: Expr,
 }

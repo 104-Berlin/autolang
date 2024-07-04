@@ -1,6 +1,6 @@
 use source_span::{
     fmt::{Formatter, Style},
-    Span,
+    Position, Span,
 };
 
 use crate::tokenizer::{token::TokenKind, Tokenizer};
@@ -43,7 +43,10 @@ impl Error {
         self.span
     }
 
-    pub fn show_error(&self, source: &str) {
+    pub fn show_error<I>(&self, source: I)
+    where
+        I: Iterator<Item = ParseResult<char>>,
+    {
         // Code to extract the source code from the span
         /*let source_buffer = SourceBuffer::new(
             source.chars().map(|c| Ok::<char, ()>(c)),
@@ -52,15 +55,15 @@ impl Error {
         );*/
         let message = format!("{}", self.kind);
 
+        let full_span = Span::new(
+            Position::default(),
+            Position::new(usize::MAX - 1, usize::MAX - 1),
+            Position::end(),
+        );
+
         let mut fmt = Formatter::new();
         fmt.add(self.span, Some(message), Style::Error);
-        let formatted = fmt
-            .render(
-                source.chars().map(Ok::<char, ()>),
-                self.span.aligned(),
-                &Tokenizer::METRICS,
-            )
-            .unwrap();
+        let formatted = fmt.render(source, full_span, &Tokenizer::METRICS).unwrap();
 
         println!("{}", formatted);
     }
