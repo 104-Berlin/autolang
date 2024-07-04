@@ -85,10 +85,10 @@ impl Parser {
         Ok(FunctionDecl { proto, body })
     }
 
-    fn parse_function_proto(&mut self, name: &String) -> ParseResult<FunctionProto> {
+    fn parse_function_proto(&mut self, name: &str) -> ParseResult<FunctionProto> {
         let args = self.parse_function_args()?;
         Ok(FunctionProto {
-            name: name.clone(),
+            name: name.to_string(),
             arguments: args,
         })
     }

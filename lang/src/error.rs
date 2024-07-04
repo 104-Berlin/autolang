@@ -1,6 +1,6 @@
 use source_span::{
     fmt::{Formatter, Style},
-    Position, SourceBuffer, Span,
+    Position, Span,
 };
 
 use crate::tokenizer::{token::TokenKind, Tokenizer};
@@ -63,13 +63,7 @@ impl Error {
 
         let mut fmt = Formatter::new();
         fmt.add(self.span, Some(message), Style::Error);
-        let formatted = fmt
-            .render(
-                source,
-                full_span,
-                &Tokenizer::METRICS,
-            )
-            .unwrap();
+        let formatted = fmt.render(source, full_span, &Tokenizer::METRICS).unwrap();
 
         println!("{}", formatted);
     }
