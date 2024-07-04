@@ -12,5 +12,15 @@ pub enum Type {
 #[derive(Debug, Clone)]
 pub struct StructField {
     pub name: String,
-    pub ty: Type,
+    pub ty: TypeID,
+}
+
+#[derive(Debug, Clone)]
+pub enum TypeID {
+    Int,
+    Float,
+    String,
+    Bool,
+
+    User(String),
 }

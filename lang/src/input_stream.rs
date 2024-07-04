@@ -1,10 +1,10 @@
 use std::{
     fs::File,
-    io::{BufRead, BufReader, Seek},
+    io::{BufReader, Seek},
     iter::Peekable,
 };
 
-use utf8_chars::{BufReadCharsExt, Chars, CharsRaw};
+use utf8_chars::BufReadCharsExt;
 
 pub trait InputStream {
     type Output;

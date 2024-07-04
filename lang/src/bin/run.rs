@@ -1,9 +1,7 @@
 use lang::{
     error::{Error, ErrorKind},
-    input_stream::{FileInputStream, InputStream},
-    module::Module,
+    input_stream::FileInputStream,
     parser::Parser,
-    tokenizer::Tokenizer,
 };
 use source_span::Span;
 use std::{env, fs::OpenOptions, io::BufReader};
