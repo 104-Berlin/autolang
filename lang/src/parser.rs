@@ -81,7 +81,8 @@ impl Parser {
     fn parse_function(&mut self) -> ParseResult<FunctionDecl> {
         let function_name = self.parse_user_defined_identifier()?;
         let proto = self.parse_function_proto(&function_name)?;
-        Ok(FunctionDecl { proto })
+        let body = self.parse_block_expression()?;
+        Ok(FunctionDecl { proto, body })
     }
 
     fn parse_function_proto(&mut self, name: &String) -> ParseResult<FunctionProto> {
@@ -183,6 +184,29 @@ impl Parser {
             lhs = Expr::Binary(BinaryExpression::new(lhs.clone(), op, rhs));
         }
         Ok(lhs)
+    }
+
+    fn parse_block_expression(&mut self) -> ParseResult<Expr> {
+        let mut block = Vec::new();
+
+        self.consume_checked(TokenKind::Identifier(Identifier::LBrace))?;
+
+        while !self.is_next_token(TokenKind::Identifier(Identifier::RBrace)) {
+            block.push(self.parse_expression()?);
+
+            // We expect a semicolon after each expression in a block, or we are at the end of the block.
+            match self.consume_checked(TokenKind::Identifier(Identifier::Semicolon)) {
+                Ok(_) => {}
+                Err(_) if self.is_next_token(TokenKind::Identifier(Identifier::RBrace)) => {
+                    break;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        self.consume_checked(TokenKind::Identifier(Identifier::RBrace))?;
+
+        Ok(Expr::Block(block))
     }
 }
 

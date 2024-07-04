@@ -1,1 +1,2 @@
-fn test()
+fn test() 
+{}

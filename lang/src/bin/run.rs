@@ -27,8 +27,9 @@ fn main() {
             for func in module.functions() {
                 println!("Function: {}", func.proto.name);
                 for stmt in func.proto.arguments.iter() {
-                    println!("let {}: {};", stmt.0, stmt.1);
+                    println!("arg {}: {};", stmt.0, stmt.1);
                 }
+                println!("Body: {}", func.body);
             }
         }
         Err(e) => {

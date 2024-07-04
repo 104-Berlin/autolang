@@ -1,4 +1,4 @@
-use super::type_def::TypeID;
+use super::{expression::Expr, type_def::TypeID};
 
 pub type ArgumentDecl = (String, TypeID);
 
@@ -11,5 +11,5 @@ pub struct FunctionProto {
 #[derive(Debug, Clone)]
 pub struct FunctionDecl {
     pub proto: FunctionProto,
-    // pub body: Body
+    pub body: Expr,
 }

@@ -12,6 +12,10 @@ pub enum Expr {
 
     Literal(Literal),
     Variable(String),
+
+    Assignment(String, Box<Expr>),
+
+    Block(Vec<Expr>),
 }
 
 impl Expr {
@@ -31,6 +35,12 @@ impl Expr {
                     val.trunc() as i64
                 }
             },
+            Expr::Assignment(var, expr) => {
+                let val = expr.evaluate();
+                println!("Assigning {} to {}", val, var);
+                eprintln!("Evaluating and assignment is not implemented yet!");
+                0
+            }
             Expr::Binary(BinaryExpression { lhs, op, rhs }) => {
                 let lhs = lhs.evaluate();
                 let rhs = rhs.evaluate();
@@ -41,6 +51,13 @@ impl Expr {
                     crate::parser::binary_expression::BinaryOperator::Multiply => lhs * rhs,
                     crate::parser::binary_expression::BinaryOperator::Divide => lhs / rhs,
                 }
+            }
+            Expr::Block(expr) => {
+                let mut last = 0;
+                for e in expr {
+                    last = e.evaluate();
+                }
+                last
             }
         }
     }
@@ -53,6 +70,7 @@ impl Display for Expr {
             Expr::Binary(expr) => {
                 write!(f, "({} {} {})", expr.lhs, expr.op, expr.rhs)
             }
+            Expr::Assignment(var, expr) => write!(f, "{} = {}", var, expr),
             Expr::Literal(literal) => write!(
                 f,
                 "{}",
@@ -62,6 +80,13 @@ impl Display for Expr {
                 }
             ),
             Expr::Variable(name) => write!(f, "{}", name),
+            Expr::Block(expr) => {
+                write!(f, "{{")?;
+                for e in expr {
+                    write!(f, "{}", e)?;
+                }
+                write!(f, "}}")
+            }
         }
     }
 }
