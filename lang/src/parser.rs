@@ -89,10 +89,18 @@ impl Parser {
     fn parse_function_proto(&mut self, name: Spanned<String>) -> ParseResult<FunctionProto> {
         let args = self.parse_function_args()?;
         let span = name.span.union(args.span);
+        let return_type =
+            if let Ok(arrow) = self.consume_checked(Token::Identifier(Identifier::Arrow)) {
+                self.parse_type()?.map_span(|span| arrow.span.union(span))
+            } else {
+                Spanned::new(TypeID::Void, args.span.next())
+            };
+
         Ok(Spanned::new(
             FunctionProto {
                 name: name.clone(),
                 arguments: args,
+                return_type,
             },
             span,
         ))

@@ -1,8 +1,9 @@
-fn my_func(b: int) {
+fn my_func(b: int) -> int {
     let a: int = 32;
+    a
 }
 
-fn main() {
+fn main() -> int {
     let a: int = my_func(32);
-    123 + 3
+    123 + 3 - a
 }

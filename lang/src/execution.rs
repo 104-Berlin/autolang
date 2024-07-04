@@ -3,7 +3,7 @@ use source_span::Span;
 use value::Value;
 
 use crate::{
-    error::{Error, ErrorKind, ParseResult},
+    error::{Error, ErrorKind, ParseResult, TypeMismatchReason},
     module::Module,
     parser::{binary_expression::BinaryExpression, expression::Expr, function::FunctionDecl},
     spanned::Spanned,
@@ -34,16 +34,19 @@ impl<'a> ExecutionContext<'a> {
     }
 
     pub fn execute(&mut self) -> ParseResult<Value> {
-        let Some(main) = self
+        let func_name = if let Some(main) = self
             .public_functions
-            .iter()
+            .iter_mut()
             .find(|func| func.value.proto.value.name.value == "main")
-        else {
+        {
+            let name = main.value.proto.value.name.clone();
+            name
+        } else {
             eprintln!("Error: No main function found");
             return Err(Error::new(self.span, ErrorKind::NoMainFunction));
         };
 
-        self.run_function(main.value.proto.value.name.clone(), vec![])
+        self.run_function(func_name, vec![])
     }
 
     fn run_function(
@@ -51,11 +54,13 @@ impl<'a> ExecutionContext<'a> {
         func_name: Spanned<String>,
         args: Vec<Spanned<Expr>>,
     ) -> ParseResult<Value> {
+        // Execute input expressions to the actual values
         let input_values = args
             .into_iter()
             .map(|arg| self.run_expr(arg))
             .collect::<Vec<_>>();
 
+        // Find the function to call
         let function = self
             .public_functions
             .iter()
@@ -74,10 +79,14 @@ impl<'a> ExecutionContext<'a> {
             ));
         }
 
+        // Create a new scope for the function
         let mut scope = Scope {
             variables: Vec::new(),
         };
 
+        let return_type = function.value.proto.value.return_type.value.clone();
+
+        // Push input vars to the function stack
         for ((arg_name, arg_type), value) in function
             .value
             .proto
@@ -97,11 +106,23 @@ impl<'a> ExecutionContext<'a> {
                 .push(Spanned::new((arg_name.value.clone(), value), arg_name.span));
         }
 
+        // Push scope for the body
         self.scopes.push(scope);
 
         let res = self.run_expr(function.value.body.clone())?;
 
+        // Pop the scope
         self.scopes.pop();
+
+        if res.value.type_id != return_type {
+            // Return types dont match
+            return Err(Error::new_type_mismatch(
+                res.span,
+                return_type,
+                res.value.type_id.clone(),
+                TypeMismatchReason::FunctionReturn,
+            ));
+        }
 
         Ok(res)
     }
@@ -148,19 +169,15 @@ impl<'a> ExecutionContext<'a> {
                         span,
                         type_id.value.clone(),
                         value.type_id,
+                        TypeMismatchReason::VariableAssignment,
                     ));
                 }
 
-                self.scopes.last_mut().unwrap().variables.push(Spanned::new(
-                    (
-                        var_name.value.clone(),
-                        Value {
-                            value: Box::new(value),
-                            type_id: type_id.value.clone(),
-                        },
-                    ),
-                    var_name.span,
-                ));
+                self.scopes
+                    .last_mut()
+                    .unwrap()
+                    .variables
+                    .push(Spanned::new((var_name.value.clone(), value), var_name.span));
 
                 Ok(Spanned::new(Value::new_void(), span))
             }
@@ -181,6 +198,7 @@ impl<'a> ExecutionContext<'a> {
                     }
                     crate::parser::binary_expression::BinaryOperator::Divide => lhs.value.div(&rhs),
                 }
+                .map(|v| v.map_span(|_| lhs.span.union(rhs.span)))
             }
             Expr::Block(statements, return_expr) => {
                 for e in statements {

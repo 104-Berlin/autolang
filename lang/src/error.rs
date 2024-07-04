@@ -4,7 +4,7 @@ use source_span::{
 };
 
 use crate::{
-    parser::type_def::TypeID,
+    parser::{binary_expression::BinaryOperator, type_def::TypeID},
     spanned::Spanned,
     tokenizer::{token::Token, Tokenizer},
 };
@@ -39,9 +39,18 @@ pub enum ErrorKind {
     TypeMismatch {
         expected: TypeID,
         found: TypeID,
+        reason: TypeMismatchReason,
     },
 
     NoMainFunction,
+}
+
+#[derive(Debug, Clone)]
+pub enum TypeMismatchReason {
+    FunctionReturn,
+    FunctionArgument,
+    BinaryOperation(BinaryOperator),
+    VariableAssignment,
 }
 
 impl std::error::Error for ErrorKind {}
@@ -71,8 +80,20 @@ impl Error {
         )
     }
 
-    pub fn new_type_mismatch(span: Span, expected: TypeID, found: TypeID) -> Error {
-        Error::new(span, ErrorKind::TypeMismatch { expected, found })
+    pub fn new_type_mismatch(
+        span: Span,
+        expected: TypeID,
+        found: TypeID,
+        reason: TypeMismatchReason,
+    ) -> Error {
+        Error::new(
+            span,
+            ErrorKind::TypeMismatch {
+                expected,
+                found,
+                reason,
+            },
+        )
     }
 
     pub fn kind(&self) -> &ErrorKind {
@@ -148,13 +169,32 @@ impl std::fmt::Display for ErrorKind {
             Self::VariableAlreadyDeclared(name) => {
                 write!(f, "Variable '{}' already declared", name)
             }
-            Self::TypeMismatch { expected, found } => {
-                write!(
+            Self::TypeMismatch {
+                expected,
+                found,
+                reason,
+            } => match reason {
+                TypeMismatchReason::FunctionReturn => write!(
                     f,
-                    "Type mismatch! Expected '{}', found '{}'",
+                    "Type mismatch, expected return type '{}', found '{}'",
                     expected, found
-                )
-            }
+                ),
+                TypeMismatchReason::FunctionArgument => write!(
+                    f,
+                    "Type mismatch, expected argument type '{}', found '{}'",
+                    expected, found
+                ),
+                TypeMismatchReason::BinaryOperation(_) => write!(
+                    f,
+                    "Type mismatch, expected both operands to be of type '{}', found '{}'",
+                    expected, found
+                ),
+                TypeMismatchReason::VariableAssignment => write!(
+                    f,
+                    "Type mismatch, expected variable to be of type '{}', found '{}'",
+                    expected, found
+                ),
+            },
             Self::NoMainFunction => write!(f, "No main function found"),
         }
     }
