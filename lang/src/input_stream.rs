@@ -48,6 +48,37 @@ pub trait InputStream {
     {
         self.consume_checked(expected).ok_or(error)
     }
+
+    // Will consume the expected as well
+    fn consume_till(&mut self, expected: &[Self::Output]) -> Vec<Self::Output>
+    where
+        Self::Output: PartialEq + Clone,
+    {
+        assert!(expected.len() > 0, "expected must not be empty");
+
+        let mut buffer = Vec::new();
+
+        while let Some(c) = self.next() {
+            if c == expected[0] {
+                let mut found = true;
+
+                for e in &expected[1..] {
+                    if self.next() != Some(e.clone()) {
+                        found = false;
+                        break;
+                    }
+                }
+
+                if found {
+                    break;
+                }
+            }
+
+            buffer.push(c);
+        }
+
+        buffer
+    }
 }
 
 impl<I> InputStream for Peekable<I>
