@@ -54,7 +54,7 @@ pub trait InputStream {
     where
         Self::Output: PartialEq + Clone,
     {
-        assert!(expected.len() > 0, "expected must not be empty");
+        assert!(!expected.is_empty(), "expected must not be empty");
 
         let mut buffer = Vec::new();
 
