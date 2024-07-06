@@ -105,6 +105,24 @@ impl Tokenizer {
             )),
             // '*'
             '*' => Some(Spanned::new(Token::Identifier(Identifier::Star), self.span)),
+            // '//'
+            '/' if self.consume_checked('/').is_some() => {
+                let _comment: String = self
+                    .input
+                    .consume_till(std::slice::from_ref(&'\n'))
+                    .into_iter()
+                    .collect();
+                self.next_token()
+            }
+            // '/*'
+            '/' if self.consume_checked('*').is_some() => {
+                let _comment: String = self
+                    .input
+                    .consume_till("*/".chars().collect::<Vec<_>>().as_slice())
+                    .into_iter()
+                    .collect();
+                self.next_token()
+            }
             // '/'
             '/' => Some(Spanned::new(
                 Token::Identifier(Identifier::Slash),

@@ -1,3 +1,8 @@
+// This is my single line comment
+/*
+This is a multiline comment.
+Second line*/
+
 fn my_func(b: float) -> float {
     let a: float = 32.32;
     a - b
