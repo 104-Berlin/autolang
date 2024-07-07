@@ -5,7 +5,12 @@ use value::Value;
 use crate::{
     error::{Error, ErrorKind, ParseResult, TypeMismatchReason},
     module::Module,
-    parser::{binary_expression::BinaryExpression, expression::Expr, function::FunctionDecl},
+    parser::{
+        binary_expression::BinaryExpression,
+        expression::Expr,
+        function::{FunctionDecl, FunctionProto},
+        type_def::TypeID,
+    },
     spanned::Spanned,
     tokenizer::literal::Literal,
 };
@@ -16,6 +21,7 @@ pub struct ExecutionContext<'a> {
     pub span: Span,
     pub scopes: Vec<Scope>,
     pub public_functions: Vec<&'a Spanned<FunctionDecl>>,
+    pub system_functions: Vec<FunctionProto>,
 }
 
 pub struct Scope {
@@ -30,7 +36,36 @@ impl<'a> ExecutionContext<'a> {
             }],
             span: module.span,
             public_functions: module.value.functions().iter().collect(),
+            system_functions: Self::system_functions(),
         }
+    }
+
+    #[inline]
+    fn system_functions() -> Vec<FunctionProto> {
+        vec![
+            FunctionProto {
+                name: Spanned::new("print".to_string(), Span::default()),
+                return_type: Spanned::new(TypeID::Void, Span::default()),
+                arguments: Spanned::new(
+                    vec![(
+                        Spanned::new("arg".to_string(), Span::default()),
+                        Spanned::new(TypeID::String, Span::default()),
+                    )],
+                    Span::default(),
+                ),
+            },
+            FunctionProto {
+                name: Spanned::new("println".to_string(), Span::default()),
+                return_type: Spanned::new(TypeID::Void, Span::default()),
+                arguments: Spanned::new(
+                    vec![(
+                        Spanned::new("arg".to_string(), Span::default()),
+                        Spanned::new(TypeID::String, Span::default()),
+                    )],
+                    Span::default(),
+                ),
+            },
+        ]
     }
 
     pub fn execute(&mut self) -> ParseResult<Value> {
@@ -59,21 +94,95 @@ impl<'a> ExecutionContext<'a> {
             .collect::<Vec<_>>();
 
         // Find the function to call
+        let system_function = self
+            .system_functions
+            .iter()
+            .find(|f| f.name.value == func_name.value)
+            .cloned();
+
         let function = self
             .public_functions
             .iter()
-            .find(|func| func.value.proto.value.name.value == func_name.value)
-            .ok_or(Error::new(
-                func_name.span,
-                ErrorKind::FunctionNotFound(func_name.value.clone()),
-            ))?;
+            .find(|func| func.value.proto.value.name.value == func_name.value);
 
-        // Check for provided arguments
-        if function.value.proto.value.arguments.value.len() != input_values.len() {
-            return Err(Error::new_invalid_number_of_arguments(
+        match (&system_function, function) {
+            (Some(func), _) => self.run_system_function(func_name, func, input_values),
+            (None, Some(func)) => self.run_declared_function(func_name.span, func, input_values),
+            (None, None) => Err(Error::new(
                 func_name.span,
+                ErrorKind::FunctionNotFound(func_name.value),
+            )),
+        }
+    }
+
+    fn run_system_function(
+        &mut self,
+        call_span: Spanned<String>,
+        proto: &FunctionProto,
+        arguments: Vec<ParseResult<Value>>,
+    ) -> ParseResult<Value> {
+        // Check for provided arguments
+        if proto.arguments.value.len() != arguments.len() {
+            return Err(Error::new_invalid_number_of_arguments(
+                call_span.span,
+                proto.arguments.value.len(),
+                arguments.len(),
+            ));
+        }
+
+        match proto.name.value.as_str() {
+            "print" => {
+                let to_print_value = arguments.into_iter().next().unwrap()?;
+                let to_print_string =
+                    to_print_value
+                        .value
+                        .as_string()
+                        .ok_or(Error::new_type_mismatch(
+                            to_print_value.span,
+                            TypeID::String,
+                            to_print_value.value.type_id.clone(),
+                            TypeMismatchReason::FunctionArgument,
+                        ))?;
+
+                print!("{}", to_print_string);
+
+                Ok(Spanned::new(Value::new_void(), Span::default()))
+            }
+            "println" => {
+                let to_print_value = arguments.into_iter().next().unwrap()?;
+                let to_print_string =
+                    to_print_value
+                        .value
+                        .as_string()
+                        .ok_or(Error::new_type_mismatch(
+                            to_print_value.span,
+                            TypeID::String,
+                            to_print_value.value.type_id.clone(),
+                            TypeMismatchReason::FunctionArgument,
+                        ))?;
+
+                println!("{}", to_print_string);
+                Ok(Spanned::new(Value::new_void(), Span::default()))
+            }
+            _ => Err(Error::new(
+                call_span.span,
+                ErrorKind::FunctionNotFound(call_span.value),
+            )),
+        }
+    }
+
+    fn run_declared_function(
+        &mut self,
+        call_span: Span,
+        function: &Spanned<FunctionDecl>,
+        arguments: Vec<ParseResult<Value>>,
+    ) -> ParseResult<Value> {
+        // Check for provided arguments
+        if function.value.proto.value.arguments.value.len() != arguments.len() {
+            return Err(Error::new_invalid_number_of_arguments(
+                call_span,
                 function.value.proto.value.arguments.value.len(),
-                input_values.len(),
+                arguments.len(),
             ));
         }
 
@@ -92,7 +201,7 @@ impl<'a> ExecutionContext<'a> {
             .arguments
             .value
             .iter()
-            .zip(input_values)
+            .zip(arguments)
         {
             let value = value?;
             if value.value.type_id != arg_type.value {
@@ -144,6 +253,7 @@ impl<'a> ExecutionContext<'a> {
             Expr::Literal(literal) => match literal.value {
                 Literal::NumberInt(val) => Ok(Spanned::new(Value::new_int(val), literal.span)),
                 Literal::NumberFloat(val) => Ok(Spanned::new(Value::new_float(val), literal.span)),
+                Literal::String(val) => Ok(Spanned::new(Value::new_string(val), literal.span)),
             },
             Expr::Assignment(var, expr) => {
                 let val = self.run_expr(*expr)?;

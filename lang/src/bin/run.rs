@@ -24,9 +24,7 @@ fn main() {
         });
 
     match execution {
-        Ok(result) => {
-            println!("Programm exited successfully with result: {}", result.value);
-        }
+        Ok(_) => {}
         Err(e) => {
             let file = OpenOptions::new().read(true).open(&input_file).unwrap();
             let mut reader = BufReader::new(file);

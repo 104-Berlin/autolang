@@ -367,6 +367,7 @@ impl Parser {
                 match type_name.as_str() {
                     "int" => Ok(Spanned::new(TypeID::Int, span)),
                     "float" => Ok(Spanned::new(TypeID::Float, span)),
+                    "String" => Ok(Spanned::new(TypeID::String, span)),
                     _ => Ok(Spanned::new(TypeID::User(type_name), span)),
                 }
             }

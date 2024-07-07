@@ -20,6 +20,8 @@ pub trait InputStream {
         self.peek() == Some(expected)
     }
 
+    /// Returns the Expected output if it is the next
+    /// Returns None if the expected does not match
     fn expect(&mut self, expected: Self::Output) -> Option<Self::Output>
     where
         Self::Output: PartialEq,
@@ -27,13 +29,14 @@ pub trait InputStream {
         let output = self.peek()?;
 
         if output == expected {
-            self.advance();
             Some(output)
         } else {
             None
         }
     }
 
+    /// Returns Some(..) if the next input is the expected output
+    /// Returns None if the input could not be matched
     fn consume_checked(&mut self, expected: Self::Output) -> Option<Self::Output>
     where
         Self::Output: PartialEq,
@@ -47,37 +50,6 @@ pub trait InputStream {
         Self::Output: PartialEq,
     {
         self.consume_checked(expected).ok_or(error)
-    }
-
-    // Will consume the expected as well
-    fn consume_till(&mut self, expected: &[Self::Output]) -> Vec<Self::Output>
-    where
-        Self::Output: PartialEq + Clone,
-    {
-        assert!(!expected.is_empty(), "expected must not be empty");
-
-        let mut buffer = Vec::new();
-
-        while let Some(c) = self.next() {
-            if c == expected[0] {
-                let mut found = true;
-
-                for e in &expected[1..] {
-                    if self.next() != Some(e.clone()) {
-                        found = false;
-                        break;
-                    }
-                }
-
-                if found {
-                    break;
-                }
-            }
-
-            buffer.push(c);
-        }
-
-        buffer
     }
 }
 
