@@ -197,11 +197,8 @@ impl Tokenizer {
 
                 self.span.push(next, &Self::METRICS);
 
-                match next {
-                    '\"' => {
-                        string.push('\"');
-                    }
-                    _ => {}
+                if next == '\"' {
+                    string.push('\"');
                 }
             } else {
                 string.push(c);
@@ -281,7 +278,7 @@ impl Tokenizer {
                     let next_input = self.input.next()?;
                     self.span.push(next_input, &Self::METRICS);
 
-                    if next_input != e.clone() {
+                    if next_input != *e {
                         found = false;
                         break;
                     }
