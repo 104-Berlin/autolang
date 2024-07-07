@@ -5,13 +5,9 @@ use value::Value;
 use crate::{
     error::{Error, ErrorKind, ParseResult, TypeMismatchReason},
     module::Module,
-    parser::{
-        binary_expression::BinaryExpression,
-        expression::Expr,
-        function::{FunctionDecl, FunctionProto},
-        type_def::TypeID,
-    },
+    parser::{binary_expression::BinaryExpression, expression::Expr, function::FunctionDecl},
     spanned::Spanned,
+    system_functions::{self, IntoSystem, System},
     tokenizer::literal::Literal,
 };
 
@@ -21,11 +17,15 @@ pub struct ExecutionContext<'a> {
     pub span: Span,
     pub scopes: Vec<Scope>,
     pub public_functions: Vec<&'a Spanned<FunctionDecl>>,
-    pub system_functions: Vec<FunctionProto>,
+    pub system_functions: Vec<(String, Box<dyn System>)>,
 }
 
 pub struct Scope {
     pub variables: Vec<Spanned<(String, Value)>>,
+}
+
+fn test(int: i32) {
+    println!("Hello, World! {int}");
 }
 
 impl<'a> ExecutionContext<'a> {
@@ -36,36 +36,21 @@ impl<'a> ExecutionContext<'a> {
             }],
             span: module.span,
             public_functions: module.value.functions().iter().collect(),
-            system_functions: Self::system_functions(),
+            system_functions: Vec::with_capacity(4),
         }
+        .register_system_function("print", system_functions::print::print)
+        .register_system_function("println", system_functions::print::println)
+        .register_system_function("test", test)
     }
 
-    #[inline]
-    fn system_functions() -> Vec<FunctionProto> {
-        vec![
-            FunctionProto {
-                name: Spanned::new("print".to_string(), Span::default()),
-                return_type: Spanned::new(TypeID::Void, Span::default()),
-                arguments: Spanned::new(
-                    vec![(
-                        Spanned::new("arg".to_string(), Span::default()),
-                        Spanned::new(TypeID::String, Span::default()),
-                    )],
-                    Span::default(),
-                ),
-            },
-            FunctionProto {
-                name: Spanned::new("println".to_string(), Span::default()),
-                return_type: Spanned::new(TypeID::Void, Span::default()),
-                arguments: Spanned::new(
-                    vec![(
-                        Spanned::new("arg".to_string(), Span::default()),
-                        Spanned::new(TypeID::String, Span::default()),
-                    )],
-                    Span::default(),
-                ),
-            },
-        ]
+    pub fn register_system_function<I, S: System + 'static>(
+        mut self,
+        name: impl Into<String>,
+        system: impl IntoSystem<I, System = S>,
+    ) -> Self {
+        self.system_functions
+            .push((name.into(), Box::new(system.into_system())));
+        self
     }
 
     pub fn execute(&mut self) -> ParseResult<Value> {
@@ -97,16 +82,15 @@ impl<'a> ExecutionContext<'a> {
         let system_function = self
             .system_functions
             .iter()
-            .find(|f| f.name.value == func_name.value)
-            .cloned();
+            .find(|f| f.0 == func_name.value);
 
         let function = self
             .public_functions
             .iter()
             .find(|func| func.value.proto.value.name.value == func_name.value);
 
-        match (&system_function, function) {
-            (Some(func), _) => self.run_system_function(func_name, func, input_values),
+        match (system_function, function) {
+            (Some(func), _) => self.run_system_function(func_name, &func.1, input_values),
             (None, Some(func)) => self.run_declared_function(func_name.span, func, input_values),
             (None, None) => Err(Error::new(
                 func_name.span,
@@ -116,59 +100,28 @@ impl<'a> ExecutionContext<'a> {
     }
 
     fn run_system_function(
-        &mut self,
+        &self,
         call_span: Spanned<String>,
-        proto: &FunctionProto,
+        system: &Box<dyn System>,
         arguments: Vec<ParseResult<Value>>,
     ) -> ParseResult<Value> {
         // Check for provided arguments
-        if proto.arguments.value.len() != arguments.len() {
+        /*if proto.arguments.value.len() != arguments.len() {
             return Err(Error::new_invalid_number_of_arguments(
                 call_span.span,
                 proto.arguments.value.len(),
                 arguments.len(),
             ));
-        }
+        }*/
 
-        match proto.name.value.as_str() {
-            "print" => {
-                let to_print_value = arguments.into_iter().next().unwrap()?;
-                let to_print_string =
-                    to_print_value
-                        .value
-                        .as_string()
-                        .ok_or(Error::new_type_mismatch(
-                            to_print_value.span,
-                            TypeID::String,
-                            to_print_value.value.type_id.clone(),
-                            TypeMismatchReason::FunctionArgument,
-                        ))?;
+        system.run(
+            arguments
+                .into_iter()
+                .map(|arg| arg.map(|v| v.value))
+                .collect::<Result<Vec<_>, Error>>()?,
+        );
 
-                print!("{}", to_print_string);
-
-                Ok(Spanned::new(Value::new_void(), Span::default()))
-            }
-            "println" => {
-                let to_print_value = arguments.into_iter().next().unwrap()?;
-                let to_print_string =
-                    to_print_value
-                        .value
-                        .as_string()
-                        .ok_or(Error::new_type_mismatch(
-                            to_print_value.span,
-                            TypeID::String,
-                            to_print_value.value.type_id.clone(),
-                            TypeMismatchReason::FunctionArgument,
-                        ))?;
-
-                println!("{}", to_print_string);
-                Ok(Spanned::new(Value::new_void(), Span::default()))
-            }
-            _ => Err(Error::new(
-                call_span.span,
-                ErrorKind::FunctionNotFound(call_span.value),
-            )),
-        }
+        Ok(Spanned::new(Value::new_void(), call_span.span))
     }
 
     fn run_declared_function(
