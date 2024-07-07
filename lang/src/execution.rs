@@ -24,8 +24,9 @@ pub struct Scope {
     pub variables: Vec<Spanned<(String, Value)>>,
 }
 
-fn test(int: i32) {
+fn test(int: i64) -> i64 {
     println!("Hello, World! {int}");
+    int + 12
 }
 
 impl<'a> ExecutionContext<'a> {
@@ -114,14 +115,14 @@ impl<'a> ExecutionContext<'a> {
             ));
         }*/
 
-        system.run(
+        let result = system.run(
             arguments
                 .into_iter()
                 .map(|arg| arg.map(|v| v.value))
                 .collect::<Result<Vec<_>, Error>>()?,
         );
 
-        Ok(Spanned::new(Value::new_void(), call_span.span))
+        Ok(Spanned::new(result, call_span.span))
     }
 
     fn run_declared_function(

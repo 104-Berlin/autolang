@@ -6,7 +6,7 @@ fn my_func(b: float) -> float {
 fn main() -> float {
     let a: float = my_func(32.0);
     let b: String = "Hello World";
-    test(32);
-    println(b + " " + a);
+    let c: int = test(32) - 6;
+    println(b + " " + a + " c: " + c);
     123.3 + 3.1 - a
 }

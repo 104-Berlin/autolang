@@ -236,6 +236,13 @@ impl Value {
         }
         .map(|v| Spanned::new(v, other.span))
     }
+
+    pub fn from_generic<T>(value: T) -> Self
+    where
+        T: Into<Self>,
+    {
+        value.into()
+    }
 }
 
 impl Clone for Value {
@@ -267,6 +274,42 @@ impl From<TypeID> for Value {
 impl From<Spanned<TypeID>> for Value {
     fn from(value: Spanned<TypeID>) -> Self {
         Self::from(value.value)
+    }
+}
+
+impl From<i64> for Value {
+    fn from(value: i64) -> Self {
+        Self::new_int(value)
+    }
+}
+
+impl From<f64> for Value {
+    fn from(value: f64) -> Self {
+        Self::new_float(value)
+    }
+}
+
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Self::new_bool(value)
+    }
+}
+
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Self::new_string(value)
+    }
+}
+
+impl From<&str> for Value {
+    fn from(value: &str) -> Self {
+        Self::new_string(value.to_string())
+    }
+}
+
+impl From<()> for Value {
+    fn from(_: ()) -> Self {
+        Self::new_void()
     }
 }
 

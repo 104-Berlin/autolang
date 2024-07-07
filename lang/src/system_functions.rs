@@ -8,16 +8,17 @@ macro_rules! impl_system {
     ) => {
         #[allow(non_snake_case)]
         #[allow(unused)]
-        impl<F, $($params: SystemParam),*> System for SystemFunction<($($params,)*), F>
+        impl<F, R, $($params: SystemParam),*> System for SystemFunction<($($params,)*), F>
             where
                 for<'a, 'b> &'a F:
-                    Fn( $($params),* )
+                    Fn( $($params),* ) -> R,
+                    R: Into<Value>,
         {
-            fn run(&self, resources: Vec<Value>) {
-                fn call_inner<$($params),*>(
-                    f: impl Fn($($params),*),
+            fn run(&self, resources: Vec<Value>) -> Value {
+                fn call_inner<R: Into<Value>, $($params),*>(
+                    f: impl Fn($($params),*) -> R,
                     $($params: $params),*
-                ) {
+                ) -> R {
                     f($($params),*)
                 }
 
@@ -27,7 +28,7 @@ macro_rules! impl_system {
                     let $params = $params::retrieve(&mut iter);
                 )*
 
-                call_inner(&self.function, $($params),*)
+                call_inner(&self.function, $($params),*).into()
             }
         }
     }
@@ -37,10 +38,11 @@ macro_rules! impl_into_system {
     (
         $($params:ident),*
     ) => {
-        impl<F, $($params: SystemParam),*> IntoSystem<($($params,)*)> for F
+        impl<F, R, $($params: SystemParam),*> IntoSystem<($($params,)*)> for F
             where
                 for<'a, 'b> &'a F:
-                    Fn( $($params),* )
+                    Fn( $($params),* ) -> R,
+                    R: Into<Value>,
         {
             type System = SystemFunction<($($params,)*), Self>;
 
@@ -64,7 +66,7 @@ pub struct SystemFunction<Input, F> {
 }
 
 pub trait System {
-    fn run(&self, args: Vec<Value>);
+    fn run(&self, args: Vec<Value>) -> Value;
 }
 
 impl_system!();
