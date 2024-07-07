@@ -24,11 +24,6 @@ pub struct Scope {
     pub variables: Vec<Spanned<(String, Value)>>,
 }
 
-fn test(int: i64) -> i64 {
-    println!("Hello, World! {int}");
-    int + 12
-}
-
 impl<'a> ExecutionContext<'a> {
     pub fn new(module: &'a Spanned<Module>) -> Self {
         Self {
@@ -41,7 +36,6 @@ impl<'a> ExecutionContext<'a> {
         }
         .register_system_function("print", system_functions::print::print)
         .register_system_function("println", system_functions::print::println)
-        .register_system_function("test", test)
     }
 
     pub fn register_system_function<I, S: System + 'static>(
@@ -91,7 +85,7 @@ impl<'a> ExecutionContext<'a> {
             .find(|func| func.value.proto.value.name.value == func_name.value);
 
         match (system_function, function) {
-            (Some(func), _) => self.run_system_function(func_name, &func.1, input_values),
+            (Some(func), _) => self.run_system_function(func_name, func.1.as_ref(), input_values),
             (None, Some(func)) => self.run_declared_function(func_name.span, func, input_values),
             (None, None) => Err(Error::new(
                 func_name.span,
@@ -103,7 +97,7 @@ impl<'a> ExecutionContext<'a> {
     fn run_system_function(
         &self,
         call_span: Spanned<String>,
-        system: &Box<dyn System>,
+        system: &dyn System,
         arguments: Vec<ParseResult<Value>>,
     ) -> ParseResult<Value> {
         // Check for provided arguments
