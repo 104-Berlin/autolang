@@ -5,7 +5,10 @@ use value::Value;
 use crate::{
     error::{Error, ErrorKind, ParseResult, TypeMismatchReason},
     module::Module,
-    parser::{binary_expression::BinaryExpression, expression::Expr, function::FunctionDecl},
+    parser::{
+        binary_expression::BinaryExpression, expression::Expr, function::FunctionDecl,
+        type_def::TypeID,
+    },
     spanned::Spanned,
     system_functions::{self, IntoSystem, System},
     tokenizer::literal::Literal,
@@ -262,6 +265,27 @@ impl<'a> ExecutionContext<'a> {
                     crate::parser::binary_expression::BinaryOperator::Divide => lhs.value.div(&rhs),
                 }
                 .map(|v| v.map_span(|_| lhs.span.union(rhs.span)))
+            }
+            Expr::IfExpression {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                let condition = self.run_expr(*condition)?;
+                let value = condition.value.as_bool().ok_or(Error::new_type_mismatch(
+                    condition.span,
+                    TypeID::Bool,
+                    condition.value.type_id.clone(),
+                    TypeMismatchReason::FunctionArgument,
+                ))?;
+
+                if value {
+                    self.run_expr(*then_block)
+                } else if let Some(else_block) = else_block {
+                    self.run_expr(*else_block)
+                } else {
+                    Ok(Spanned::new(Value::new_void(), expr.span))
+                }
             }
             Expr::Block(statements, return_expr) => {
                 for e in statements {

@@ -16,6 +16,12 @@ pub enum Expr {
     Assignment(Spanned<String>, Box<Spanned<Expr>>),
     Let(Spanned<String>, Spanned<TypeID>, Box<Spanned<Expr>>),
 
+    IfExpression {
+        condition: Box<Spanned<Expr>>,
+        then_block: Box<Spanned<Expr>>,
+        else_block: Option<Box<Spanned<Expr>>>,
+    },
+
     Block(Vec<Spanned<Expr>>, Option<Box<Spanned<Expr>>>),
 }
 
@@ -36,6 +42,17 @@ impl Display for Expr {
             }
             Expr::Literal(literal) => write!(f, "{}", literal.value),
             Expr::Variable(name) => write!(f, "{}", name.value),
+            Expr::IfExpression {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                write!(f, "if {} {}", condition.value, then_block.value)?;
+                if let Some(else_block) = else_block {
+                    write!(f, " else {}", else_block.value)?;
+                }
+                Ok(())
+            }
             Expr::Block(expr, return_expr) => {
                 write!(f, "{{")?;
                 for e in expr {
