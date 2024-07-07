@@ -103,30 +103,61 @@ impl Value {
     }
 
     pub fn add(&self, other: &Spanned<Self>) -> ParseResult<Self> {
-        if self.type_id != other.value.type_id {
+        /*if self.type_id != other.value.type_id {
             return Err(Error::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
                 TypeMismatchReason::BinaryOperation(BinaryOperator::Add),
             ));
-        }
+        }*/
 
-        match self.type_id {
-            TypeID::Int => Ok(Self::new_int(
+        match (&self.type_id, &other.value.type_id) {
+            (TypeID::Int, TypeID::Int) => Ok(Self::new_int(
                 self.as_int().unwrap() + other.value.as_int().unwrap(),
             )),
-            TypeID::Float => Ok(Self::new_float(
+            // Enable for implicit casting
+            // (TypeID::Int, TypeID::Float) => Ok(Self::new_float(
+            //     self.as_int().unwrap() as f64 + other.value.as_float().unwrap(),
+            // )),
+            (TypeID::Float, TypeID::Float) => Ok(Self::new_float(
                 self.as_float().unwrap() + other.value.as_float().unwrap(),
             )),
-            TypeID::String => {
+            // Enable for implicit casting
+            // (TypeID::Float, TypeID::Int) => Ok(Self::new_float(
+            //     self.as_float().unwrap() + other.value.as_int().unwrap() as f64,
+            // )),
+            (TypeID::String, TypeID::String) => {
                 let mut s = self.as_string().unwrap().to_string();
                 s.push_str(other.value.as_string().unwrap());
                 Ok(Self::new_string(s))
             }
-            TypeID::Bool => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
-            TypeID::Void => todo!(),
-            TypeID::User(_) => todo!(),
+            (TypeID::String, TypeID::Int)
+            | (TypeID::String, TypeID::Float)
+            | (TypeID::String, TypeID::Bool) => Ok(Self::new_string(format!(
+                "{}{}",
+                self.as_string().unwrap(),
+                other.value
+            ))),
+            (TypeID::Int, TypeID::String)
+            | (TypeID::Float, TypeID::String)
+            | (TypeID::Bool, TypeID::String) => Ok(Self::new_string(format!(
+                "{}{}",
+                self,
+                other.value.as_string().unwrap()
+            ))),
+            (TypeID::Bool, _) => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            (_, TypeID::Bool) => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            (TypeID::Void, _) => Ok(Value::new_void()),
+            (_, TypeID::Void) => Ok(self.clone()),
+            (TypeID::User(_), _) => todo!(),
+            (_, TypeID::User(_)) => todo!(),
+            (_, _) => Err(Error::new_type_mismatch(
+                other.span,
+                self.type_id.clone(),
+                other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::Add),
+            )),
         }
         .map(|v| Spanned::new(v, other.span))
     }

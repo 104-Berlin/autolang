@@ -34,14 +34,7 @@ impl Display for Expr {
             Expr::Let(var, type_id, assign) => {
                 write!(f, "let {}: {} = {}", var.value, type_id.value, assign.value)
             }
-            Expr::Literal(literal) => write!(
-                f,
-                "{}",
-                match literal.value {
-                    Literal::NumberFloat(val) => val.to_string(),
-                    Literal::NumberInt(val) => val.to_string(),
-                }
-            ),
+            Expr::Literal(literal) => write!(f, "{}", literal.value),
             Expr::Variable(name) => write!(f, "{}", name.value),
             Expr::Block(expr, return_expr) => {
                 write!(f, "{{")?;

@@ -34,7 +34,8 @@ impl Tokenizer {
 
         let current_char = self.input.next()?;
 
-        self.span = Span::from(self.span.end());
+        // Reset span, so it starts where it ends previously
+        self.span = self.span.next();
 
         self.span.push(current_char, &Self::METRICS);
 
@@ -107,20 +108,12 @@ impl Tokenizer {
             '*' => Some(Spanned::new(Token::Identifier(Identifier::Star), self.span)),
             // '//'
             '/' if self.consume_checked('/').is_some() => {
-                let _comment: String = self
-                    .input
-                    .consume_till(std::slice::from_ref(&'\n'))
-                    .into_iter()
-                    .collect();
+                let _comment: String = self.consume_till("\n").into_iter().collect();
                 self.next_token()
             }
             // '/*'
             '/' if self.consume_checked('*').is_some() => {
-                let _comment: String = self
-                    .input
-                    .consume_till("*/".chars().collect::<Vec<_>>().as_slice())
-                    .into_iter()
-                    .collect();
+                let _comment: String = self.consume_till("*/").into_iter().collect();
                 self.next_token()
             }
             // '/'
@@ -183,10 +176,39 @@ impl Tokenizer {
                 Token::Identifier(Identifier::GreaterThan),
                 self.span,
             )),
+            '\"' => Some(self.parse_string_literal()),
             c if c.is_numeric() => Some(self.parse_number_literal(current_char)),
             c if c.is_alphabetic() || c == '_' => Some(self.parse_identifier(current_char)),
             _ => None,
         }
+    }
+
+    fn parse_string_literal(&mut self) -> Spanned<Token> {
+        let mut string = String::new();
+
+        while let Some(c) = self.input.next() {
+            self.span.push(c, &Self::METRICS);
+            if c == '"' {
+                break;
+            } else if c == '\\' {
+                let Some(next) = self.input.next() else {
+                    break;
+                };
+
+                self.span.push(next, &Self::METRICS);
+
+                match next {
+                    '\"' => {
+                        string.push('\"');
+                    }
+                    _ => {}
+                }
+            } else {
+                string.push(c);
+            }
+        }
+
+        Spanned::new(Token::Literal(Literal::String(string)), self.span)
     }
 
     fn parse_number_literal(&mut self, first_char: char) -> Spanned<Token> {
@@ -242,6 +264,37 @@ impl Tokenizer {
         self.input.consume_checked(expected).inspect(|c| {
             self.span.push(*c, &Self::METRICS);
         })
+    }
+
+    fn consume_till(&mut self, expected: &str) -> Option<String> {
+        assert!(!expected.is_empty(), "expected must not be empty");
+        let mut buffer = String::new();
+
+        let expected = expected.chars().collect::<Vec<_>>();
+        let expected = expected.as_slice();
+
+        while let Some(c) = self.input.next() {
+            self.span.push(c, &Self::METRICS);
+            if c == expected[0] {
+                let mut found = true;
+                for e in &expected[1..] {
+                    let next_input = self.input.next()?;
+                    self.span.push(next_input, &Self::METRICS);
+
+                    if next_input != e.clone() {
+                        found = false;
+                        break;
+                    }
+                }
+
+                if found {
+                    break;
+                }
+            }
+
+            buffer.push(c);
+        }
+        Some(buffer)
     }
 }
 
