@@ -205,6 +205,7 @@ impl<'a> ExecutionContext<'a> {
                 Literal::NumberInt(val) => Ok(Spanned::new(Value::new_int(val), literal.span)),
                 Literal::NumberFloat(val) => Ok(Spanned::new(Value::new_float(val), literal.span)),
                 Literal::String(val) => Ok(Spanned::new(Value::new_string(val), literal.span)),
+                Literal::Bool(val) => Ok(Spanned::new(Value::new_bool(val), literal.span)),
             },
             Expr::Assignment(var, expr) => {
                 let val = self.run_expr(*expr)?;

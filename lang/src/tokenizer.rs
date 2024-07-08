@@ -249,10 +249,15 @@ impl Tokenizer {
             }
         }
 
-        Spanned::new(
-            Token::Identifier(Identifier::from_string(identifier)),
-            self.span,
-        )
+        match identifier.as_str() {
+            // Tokenizer boolean literal
+            "true" => Spanned::new(Token::Literal(Literal::Bool(true)), self.span),
+            "false" => Spanned::new(Token::Literal(Literal::Bool(false)), self.span),
+            _ => Spanned::new(
+                Token::Identifier(Identifier::from_string(identifier)),
+                self.span,
+            ),
+        }
     }
 }
 

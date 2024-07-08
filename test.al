@@ -7,9 +7,9 @@ fn main() -> float {
     let a: float = my_func(32.0);
     if false {
         println("Something");
+    } else {
+        println("False");
     }
     let b: String = "Hello World";
-    let c: int = test(32) - 6;
-    println(b + " " + a + " c: " + c);
     123.3 + 3.1 - a
 }

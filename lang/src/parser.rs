@@ -9,7 +9,7 @@ use crate::{
     input_stream::InputStream,
     module::Module,
     spanned::Spanned,
-    tokenizer::{identifier::Identifier, literal::Literal, token::Token, TokenizerStream},
+    tokenizer::{identifier::Identifier, token::Token, TokenizerStream},
 };
 
 pub mod binary_expression;
@@ -254,6 +254,10 @@ impl Parser {
                     return_expression = Some(Box::new(expr));
                     break;
                 }
+                // If expressions dont need a semicolon
+                Err(_) if matches!(expr.value, Expr::IfExpression { .. }) => {
+                    block.push(expr);
+                }
                 Err(e) => return Err(e),
             }
         }
@@ -289,14 +293,13 @@ impl Parser {
         self.consume_checked(Token::Identifier(Identifier::If))?;
 
         let condition = Box::new(self.parse_expression()?);
-        self.consume_checked(Token::Identifier(Identifier::LBrace))?;
         let then_block = Box::new(self.parse_block_expression()?);
-        let else_block = if self.is_next_token(Token::Identifier(Identifier::Else)) {
-            self.input.advance();
-            Some(Box::new(self.parse_block_expression()?))
-        } else {
-            None
-        };
+        let else_block = self
+            .consume_checked(Token::Identifier(Identifier::Else))
+            .map(|_| self.parse_block_expression())
+            .ok()
+            .transpose()?
+            .map(Box::new);
 
         let span = condition
             .span
@@ -325,20 +328,6 @@ impl Parser {
             } => {
                 self.input.advance();
                 Ok(Spanned::new(name, span))
-            }
-            tok => Err(Error::new_unexpected_token(tok, None)),
-        }
-    }
-
-    #[allow(dead_code)]
-    fn parse_literal(&mut self) -> ParseResult<Literal> {
-        match self.peek()? {
-            Spanned::<Token> {
-                value: Token::Literal(literal),
-                span,
-            } => {
-                self.input.advance();
-                Ok(Spanned::new(literal, span))
             }
             tok => Err(Error::new_unexpected_token(tok, None)),
         }
