@@ -14,6 +14,15 @@ pub enum BinaryOperator {
     Substract,
     Multiply,
     Divide,
+
+    And,
+    Or,
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
 }
 
 #[derive(Debug, Clone)]
@@ -38,6 +47,13 @@ impl BinaryOperator {
         match self {
             BinaryOperator::Add | BinaryOperator::Substract => 100,
             BinaryOperator::Multiply | BinaryOperator::Divide => 200,
+            BinaryOperator::And => 10,
+            BinaryOperator::Or => 10,
+            BinaryOperator::Equal | BinaryOperator::NotEqual => 5,
+            BinaryOperator::LessThan
+            | BinaryOperator::LessThanOrEqual
+            | BinaryOperator::GreaterThan
+            | BinaryOperator::GreaterThanOrEqual => 5,
         }
     }
 }
@@ -51,6 +67,16 @@ impl TryFrom<Spanned<Token>> for BinaryOperator {
             Token::Identifier(Identifier::Minus) => Ok(BinaryOperator::Substract),
             Token::Identifier(Identifier::Star) => Ok(BinaryOperator::Multiply),
             Token::Identifier(Identifier::Slash) => Ok(BinaryOperator::Divide),
+            Token::Identifier(Identifier::LogicalAnd) => Ok(BinaryOperator::And),
+            Token::Identifier(Identifier::LogicalOr) => Ok(BinaryOperator::Or),
+            Token::Identifier(Identifier::Equals) => Ok(BinaryOperator::Equal),
+            Token::Identifier(Identifier::NotEquals) => Ok(BinaryOperator::NotEqual),
+            Token::Identifier(Identifier::LessThan) => Ok(BinaryOperator::LessThan),
+            Token::Identifier(Identifier::LessThanOrEqual) => Ok(BinaryOperator::LessThanOrEqual),
+            Token::Identifier(Identifier::GreaterThan) => Ok(BinaryOperator::GreaterThan),
+            Token::Identifier(Identifier::GreaterThanOrEqual) => {
+                Ok(BinaryOperator::GreaterThanOrEqual)
+            }
             _ => Err(Error::new(span, ErrorKind::InvalidOperator)),
         }
     }
@@ -72,6 +98,14 @@ impl Display for BinaryOperator {
             BinaryOperator::Substract => write!(f, "-"),
             BinaryOperator::Multiply => write!(f, "*"),
             BinaryOperator::Divide => write!(f, "/"),
+            BinaryOperator::And => write!(f, "&&"),
+            BinaryOperator::Or => write!(f, "||"),
+            BinaryOperator::Equal => write!(f, "=="),
+            BinaryOperator::NotEqual => write!(f, "!="),
+            BinaryOperator::LessThan => write!(f, "<"),
+            BinaryOperator::LessThanOrEqual => write!(f, "<="),
+            BinaryOperator::GreaterThan => write!(f, ">"),
+            BinaryOperator::GreaterThanOrEqual => write!(f, ">="),
         }
     }
 }

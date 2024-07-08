@@ -6,7 +6,9 @@ use crate::{
     error::{Error, ErrorKind, ParseResult, TypeMismatchReason},
     module::Module,
     parser::{
-        binary_expression::BinaryExpression, expression::Expr, function::FunctionDecl,
+        binary_expression::{BinaryExpression, BinaryOperator},
+        expression::Expr,
+        function::FunctionDecl,
         type_def::TypeID,
     },
     spanned::Spanned,
@@ -256,14 +258,18 @@ impl<'a> ExecutionContext<'a> {
                 let rhs = self.run_expr(*rhs)?;
 
                 match op.value {
-                    crate::parser::binary_expression::BinaryOperator::Add => lhs.value.add(&rhs),
-                    crate::parser::binary_expression::BinaryOperator::Substract => {
-                        lhs.value.sub(&rhs)
-                    }
-                    crate::parser::binary_expression::BinaryOperator::Multiply => {
-                        lhs.value.mul(&rhs)
-                    }
-                    crate::parser::binary_expression::BinaryOperator::Divide => lhs.value.div(&rhs),
+                    BinaryOperator::Add => lhs.value.add(&rhs),
+                    BinaryOperator::Substract => lhs.value.sub(&rhs),
+                    BinaryOperator::Multiply => lhs.value.mul(&rhs),
+                    BinaryOperator::Divide => lhs.value.div(&rhs),
+                    BinaryOperator::And => lhs.value.and(&rhs),
+                    BinaryOperator::Or => lhs.value.or(&rhs),
+                    BinaryOperator::Equal => lhs.value.eq(&rhs),
+                    BinaryOperator::NotEqual => lhs.value.neq(&rhs),
+                    BinaryOperator::LessThan => lhs.value.lt(&rhs),
+                    BinaryOperator::LessThanOrEqual => lhs.value.lte(&rhs),
+                    BinaryOperator::GreaterThan => lhs.value.gt(&rhs),
+                    BinaryOperator::GreaterThanOrEqual => lhs.value.gte(&rhs),
                 }
                 .map(|v| v.map_span(|_| lhs.span.union(rhs.span)))
             }

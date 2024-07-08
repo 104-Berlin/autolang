@@ -5,7 +5,7 @@ fn my_func(b: float) -> float {
 
 fn main() -> float {
     let a: float = my_func(32.0);
-    if false {
+    if a > 32.0 {
         println("Something");
     } else {
         println("False");
