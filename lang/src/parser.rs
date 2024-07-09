@@ -113,6 +113,7 @@ impl Parser {
     pub fn parse_expression(&mut self) -> ParseResult<Expr> {
         match self.peek()?.value {
             Token::Identifier(Identifier::If) => self.parse_if_expression(),
+            Token::Identifier(Identifier::Loop) => self.parse_loop_expression(),
             Token::Identifier(Identifier::Let) => self.parse_let_expression(),
             Token::Identifier(Identifier::LBrace) => self.parse_block_expression(),
             _ => {
@@ -327,6 +328,16 @@ impl Parser {
             },
             span,
         ))
+    }
+
+    fn parse_loop_expression(&mut self) -> ParseResult<Expr> {
+        let loop_span = self
+            .consume_checked(Token::Identifier(Identifier::Loop))?
+            .span;
+        let expr = Box::new(self.parse_block_expression()?);
+
+        let span = loop_span.union(expr.span);
+        Ok(Spanned::new(Expr::Loop(expr), span))
     }
 }
 

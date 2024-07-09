@@ -322,6 +322,10 @@ impl<'a> ExecutionContext<'a> {
                     Ok(Spanned::new(Value::new_void(), expr.span))
                 }
             }
+
+            Expr::Loop(expr) => loop {
+                self.run_expr(expr)?;
+            },
         }
     }
 }

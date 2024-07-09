@@ -83,6 +83,10 @@ pub enum Identifier {
     Else,
     /// 'while'
     While,
+    /// 'for'
+    For,
+    /// 'loop'
+    Loop,
     /// 'return'
     Return,
     /// 'break'
@@ -100,6 +104,8 @@ impl Identifier {
             "false" => Self::False,
             "if" => Self::If,
             "else" => Self::Else,
+            "loop" => Self::Loop,
+            "for" => Self::For,
             "while" => Self::While,
             "return" => Self::Return,
             "break" => Self::Break,
@@ -146,6 +152,8 @@ impl Display for Identifier {
             Identifier::False => write!(f, "false"),
             Identifier::If => write!(f, "if"),
             Identifier::Else => write!(f, "else"),
+            Identifier::For => write!(f, "for"),
+            Identifier::Loop => write!(f, "loop"),
             Identifier::While => write!(f, "while"),
             Identifier::Return => write!(f, "return"),
             Identifier::Break => write!(f, "break"),

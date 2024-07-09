@@ -70,6 +70,7 @@ impl Display for Expr {
                 }
                 write!(f, "}}")
             }
+            Expr::Loop(expr) => write!(f, "loop {}", expr.value),
         }
     }
 }
