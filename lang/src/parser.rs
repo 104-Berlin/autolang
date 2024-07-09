@@ -9,7 +9,7 @@ use crate::{
     input_stream::InputStream,
     module::Module,
     spanned::Spanned,
-    tokenizer::{identifier::Identifier, literal::Literal, token::Token, TokenizerStream},
+    tokenizer::{identifier::Identifier, token::Token, TokenizerStream},
 };
 
 pub mod binary_expression;
@@ -112,6 +112,7 @@ impl Parser {
 impl Parser {
     pub fn parse_expression(&mut self) -> ParseResult<Expr> {
         match self.peek()?.value {
+            Token::Identifier(Identifier::If) => self.parse_if_expression(),
             Token::Identifier(Identifier::Let) => self.parse_let_expression(),
             Token::Identifier(Identifier::LBrace) => self.parse_block_expression(),
             _ => {
@@ -253,6 +254,10 @@ impl Parser {
                     return_expression = Some(Box::new(expr));
                     break;
                 }
+                // If expressions dont need a semicolon
+                Err(_) if matches!(expr.value, Expr::IfExpression { .. }) => {
+                    block.push(expr);
+                }
                 Err(e) => return Err(e),
             }
         }
@@ -283,6 +288,46 @@ impl Parser {
             span,
         ))
     }
+
+    fn parse_if_expression(&mut self) -> ParseResult<Expr> {
+        self.consume_checked(Token::Identifier(Identifier::If))?;
+
+        let condition = Box::new(self.parse_expression()?);
+        let then_block = Box::new(self.parse_block_expression()?);
+
+        let mut else_if_blocks = Vec::new();
+
+        let mut else_block = None;
+
+        while self
+            .consume_checked(Token::Identifier(Identifier::Else))
+            .is_ok()
+        {
+            match self.consume_checked(Token::Identifier(Identifier::If)) {
+                Ok(_) => else_if_blocks.push((
+                    Box::new(self.parse_expression()?),
+                    Box::new(self.parse_block_expression()?),
+                )),
+                Err(_) => {
+                    else_block = Some(Box::new(self.parse_block_expression()?));
+                    break;
+                }
+            }
+        }
+
+        let span = condition
+            .span
+            .union(else_block.as_ref().unwrap_or(&then_block).span);
+
+        Ok(Spanned::new(
+            Expr::IfExpression {
+                if_block: (condition, then_block),
+                else_if_blocks,
+                else_block,
+            },
+            span,
+        ))
+    }
 }
 
 // -------------------------------------------------------------------------------------------
@@ -297,20 +342,6 @@ impl Parser {
             } => {
                 self.input.advance();
                 Ok(Spanned::new(name, span))
-            }
-            tok => Err(Error::new_unexpected_token(tok, None)),
-        }
-    }
-
-    #[allow(dead_code)]
-    fn parse_literal(&mut self) -> ParseResult<Literal> {
-        match self.peek()? {
-            Spanned::<Token> {
-                value: Token::Literal(literal),
-                span,
-            } => {
-                self.input.advance();
-                Ok(Spanned::new(literal, span))
             }
             tok => Err(Error::new_unexpected_token(tok, None)),
         }

@@ -18,10 +18,13 @@ impl<T> Spanned<T> {
         }
     }
 
-    pub fn map_span(self, f: impl FnOnce(Span) -> Span) -> Spanned<T> {
+    pub fn map_span(&self, f: impl FnOnce(Span) -> Span) -> Spanned<T>
+    where
+        T: Clone,
+    {
         Spanned {
             span: f(self.span),
-            value: self.value,
+            value: self.value.clone(),
         }
     }
 }

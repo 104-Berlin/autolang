@@ -5,7 +5,12 @@ use value::Value;
 use crate::{
     error::{Error, ErrorKind, ParseResult, TypeMismatchReason},
     module::Module,
-    parser::{binary_expression::BinaryExpression, expression::Expr, function::FunctionDecl},
+    parser::{
+        binary_expression::{BinaryExpression, BinaryOperator},
+        expression::Expr,
+        function::FunctionDecl,
+        type_def::TypeID,
+    },
     spanned::Spanned,
     system_functions::{self, IntoSystem, System},
     tokenizer::literal::Literal,
@@ -59,17 +64,17 @@ impl<'a> ExecutionContext<'a> {
             return Err(Error::new(self.span, ErrorKind::NoMainFunction));
         };
 
-        self.run_function(func_name, vec![])
+        self.run_function(func_name, &[])
     }
 
     fn run_function(
         &mut self,
         func_name: Spanned<String>,
-        args: Vec<Spanned<Expr>>,
+        args: &[Spanned<Expr>],
     ) -> ParseResult<Value> {
         // Execute input expressions to the actual values
         let input_values = args
-            .into_iter()
+            .iter()
             .map(|arg| self.run_expr(arg))
             .collect::<Vec<_>>();
 
@@ -171,7 +176,7 @@ impl<'a> ExecutionContext<'a> {
         // Push scope for the body
         self.scopes.push(scope);
 
-        let res = self.run_expr(function.value.body.clone())?;
+        let res = self.run_expr(&function.value.body)?;
 
         // Pop the scope
         self.scopes.pop();
@@ -189,23 +194,26 @@ impl<'a> ExecutionContext<'a> {
         Ok(res)
     }
 
-    fn run_expr(&mut self, expr: Spanned<Expr>) -> ParseResult<Value> {
-        match expr.value {
+    fn run_expr(&mut self, expr: &Spanned<Expr>) -> ParseResult<Value> {
+        match &expr.value {
             Expr::FunctionCall(name, args) => {
-                self.run_function(name.map_span(|_| expr.span), args.value)
+                self.run_function(name.map_span(|_| expr.span), &args.value)
             }
             Expr::Variable(name) => {
-                let var = self.find_var(&name)?;
+                let var = self.find_var(name)?;
                 Ok(Spanned::new(var.value.clone(), name.span))
             }
-            Expr::Literal(literal) => match literal.value {
-                Literal::NumberInt(val) => Ok(Spanned::new(Value::new_int(val), literal.span)),
-                Literal::NumberFloat(val) => Ok(Spanned::new(Value::new_float(val), literal.span)),
-                Literal::String(val) => Ok(Spanned::new(Value::new_string(val), literal.span)),
+            Expr::Literal(literal) => match &literal.value {
+                Literal::NumberInt(val) => Ok(Spanned::new(Value::new_int(*val), literal.span)),
+                Literal::NumberFloat(val) => Ok(Spanned::new(Value::new_float(*val), literal.span)),
+                Literal::String(val) => {
+                    Ok(Spanned::new(Value::new_string(val.clone()), literal.span))
+                }
+                Literal::Bool(val) => Ok(Spanned::new(Value::new_bool(*val), literal.span)),
             },
             Expr::Assignment(var, expr) => {
-                let val = self.run_expr(*expr)?;
-                let var = self.find_var(&var)?;
+                let val = self.run_expr(expr)?;
+                let var = self.find_var(var)?;
 
                 var.value.set_value(&val)?;
                 Ok(Spanned::new(val.value, val.span))
@@ -225,7 +233,7 @@ impl<'a> ExecutionContext<'a> {
 
                 let span = assign.span;
 
-                let value = self.run_expr(*assign)?.value;
+                let value = self.run_expr(assign)?.value;
 
                 if value.type_id != type_id.value {
                     return Err(Error::new_type_mismatch(
@@ -248,27 +256,68 @@ impl<'a> ExecutionContext<'a> {
                 value: BinaryExpression { lhs, op, rhs },
                 ..
             }) => {
-                let lhs = self.run_expr(*lhs)?;
-                let rhs = self.run_expr(*rhs)?;
+                let lhs = self.run_expr(lhs)?;
+                let rhs = self.run_expr(rhs)?;
 
                 match op.value {
-                    crate::parser::binary_expression::BinaryOperator::Add => lhs.value.add(&rhs),
-                    crate::parser::binary_expression::BinaryOperator::Substract => {
-                        lhs.value.sub(&rhs)
-                    }
-                    crate::parser::binary_expression::BinaryOperator::Multiply => {
-                        lhs.value.mul(&rhs)
-                    }
-                    crate::parser::binary_expression::BinaryOperator::Divide => lhs.value.div(&rhs),
+                    BinaryOperator::Add => lhs.value.add(&rhs),
+                    BinaryOperator::Substract => lhs.value.sub(&rhs),
+                    BinaryOperator::Multiply => lhs.value.mul(&rhs),
+                    BinaryOperator::Divide => lhs.value.div(&rhs),
+                    BinaryOperator::And => lhs.value.and(&rhs),
+                    BinaryOperator::Or => lhs.value.or(&rhs),
+                    BinaryOperator::Equal => lhs.value.eq(&rhs),
+                    BinaryOperator::NotEqual => lhs.value.neq(&rhs),
+                    BinaryOperator::LessThan => lhs.value.lt(&rhs),
+                    BinaryOperator::LessThanOrEqual => lhs.value.lte(&rhs),
+                    BinaryOperator::GreaterThan => lhs.value.gt(&rhs),
+                    BinaryOperator::GreaterThanOrEqual => lhs.value.gte(&rhs),
                 }
                 .map(|v| v.map_span(|_| lhs.span.union(rhs.span)))
+            }
+            Expr::IfExpression {
+                if_block: (condition, then_block),
+                else_if_blocks,
+                else_block,
+            } => {
+                let condition = self.run_expr(condition)?;
+                let value = condition.value.as_bool().ok_or(Error::new_type_mismatch(
+                    condition.span,
+                    TypeID::Bool,
+                    condition.value.type_id.clone(),
+                    TypeMismatchReason::FunctionArgument,
+                ))?;
+
+                if value {
+                    return self.run_expr(then_block);
+                }
+
+                for (else_if_cond, else_if_block) in else_if_blocks {
+                    let condition = self.run_expr(else_if_cond)?;
+                    let value = condition.value.as_bool().ok_or(Error::new_type_mismatch(
+                        condition.span,
+                        TypeID::Bool,
+                        condition.value.type_id.clone(),
+                        TypeMismatchReason::FunctionArgument,
+                    ))?;
+
+                    if value {
+                        return self.run_expr(else_if_block);
+                    }
+                }
+
+                if let Some(else_block) = else_block {
+                    self.run_expr(else_block)
+                } else {
+                    Ok(Spanned::new(Value::new_void(), expr.span))
+                }
             }
             Expr::Block(statements, return_expr) => {
                 for e in statements {
                     self.run_expr(e)?;
                 }
                 if let Some(return_expr) = return_expr {
-                    self.run_expr(*return_expr)
+                    self.run_expr(return_expr)
                 } else {
                     Ok(Spanned::new(Value::new_void(), expr.span))
                 }

@@ -4,6 +4,8 @@ use crate::{spanned::Spanned, tokenizer::literal::Literal};
 
 use super::{binary_expression::BinaryExpression, type_def::TypeID};
 
+pub type IfCondition = (Box<Spanned<Expr>>, Box<Spanned<Expr>>);
+
 // Something that can yield a value
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -14,7 +16,15 @@ pub enum Expr {
     Variable(Spanned<String>),
 
     Assignment(Spanned<String>, Box<Spanned<Expr>>),
+
     Let(Spanned<String>, Spanned<TypeID>, Box<Spanned<Expr>>),
+
+    IfExpression {
+        if_block: IfCondition,
+        // Pair of condition and block
+        else_if_blocks: Vec<IfCondition>,
+        else_block: Option<Box<Spanned<Expr>>>,
+    },
 
     Block(Vec<Spanned<Expr>>, Option<Box<Spanned<Expr>>>),
 }
@@ -36,6 +46,20 @@ impl Display for Expr {
             }
             Expr::Literal(literal) => write!(f, "{}", literal.value),
             Expr::Variable(name) => write!(f, "{}", name.value),
+            Expr::IfExpression {
+                if_block: (if_cond, if_block),
+                else_if_blocks,
+                else_block,
+            } => {
+                write!(f, "if {} {}", if_cond.value, if_block.value)?;
+                for (condition, block) in else_if_blocks {
+                    write!(f, " else if {} {}", condition.value, block.value)?;
+                }
+                if let Some(else_block) = else_block {
+                    write!(f, " else {}", else_block.value)?;
+                }
+                Ok(())
+            }
             Expr::Block(expr, return_expr) => {
                 write!(f, "{{")?;
                 for e in expr {

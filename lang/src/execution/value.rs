@@ -237,6 +237,155 @@ impl Value {
         .map(|v| Spanned::new(v, other.span))
     }
 
+    // Logical operations
+    pub fn and(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+        if self.type_id != TypeID::Bool || other.value.type_id != TypeID::Bool {
+            return Err(Error::new_type_mismatch(
+                other.span,
+                self.type_id.clone(),
+                other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::And),
+            ));
+        }
+
+        Ok(Self::new_bool(
+            self.as_bool().unwrap() && other.value.as_bool().unwrap(),
+        ))
+        .map(|v| Spanned::new(v, other.span))
+    }
+
+    pub fn or(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+        if self.type_id != TypeID::Bool || other.value.type_id != TypeID::Bool {
+            return Err(Error::new_type_mismatch(
+                other.span,
+                self.type_id.clone(),
+                other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::Or),
+            ));
+        }
+
+        Ok(Self::new_bool(
+            self.as_bool().unwrap() || other.value.as_bool().unwrap(),
+        ))
+        .map(|v| Spanned::new(v, other.span))
+    }
+
+    // Comparison operations
+    /// Equal function. Trys to compare two values and returns a boolean value.
+    /// ### NOTE
+    /// This will always return a boolean value or an error if the types dont match.
+    pub fn eq(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+        if self.type_id != other.value.type_id {
+            return Err(Error::new_type_mismatch(
+                other.span,
+                self.type_id.clone(),
+                other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::Equal),
+            ));
+        }
+
+        match self.type_id {
+            TypeID::Int => Ok(Self::new_bool(
+                self.as_int().unwrap() == other.value.as_int().unwrap(),
+            )),
+            TypeID::Float => Ok(Self::new_bool(
+                self.as_float().unwrap() == other.value.as_float().unwrap(),
+            )),
+            TypeID::String => Ok(Self::new_bool(
+                self.as_string().unwrap() == other.value.as_string().unwrap(),
+            )),
+            TypeID::Bool => Ok(Self::new_bool(
+                self.as_bool().unwrap() == other.value.as_bool().unwrap(),
+            )),
+            TypeID::Void => Ok(Self::new_bool(true)),
+            TypeID::User(_) => todo!(),
+        }
+        .map(|v| Spanned::new(v, other.span))
+    }
+
+    pub fn neq(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+        self.eq(other)
+            // Value will be a bool
+            .map(|v| Self::new_bool(!v.value.as_bool().unwrap()))
+            .map(|v| Spanned::new(v, other.span))
+    }
+
+    pub fn lt(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+        if self.type_id != other.value.type_id {
+            return Err(Error::new_type_mismatch(
+                other.span,
+                self.type_id.clone(),
+                other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::LessThan),
+            ));
+        }
+
+        match self.type_id {
+            TypeID::Int => Ok(Self::new_bool(
+                self.as_int().unwrap() < other.value.as_int().unwrap(),
+            )),
+            TypeID::Float => Ok(Self::new_bool(
+                self.as_float().unwrap() < other.value.as_float().unwrap(),
+            )),
+            TypeID::String => Ok(Self::new_bool(
+                self.as_string().unwrap() < other.value.as_string().unwrap(),
+            )),
+            TypeID::Bool => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Void => Ok(Self::new_bool(true)),
+            TypeID::User(_) => todo!(),
+        }
+        .map(|v| Spanned::new(v, other.span))
+    }
+
+    pub fn gt(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+        if self.type_id != other.value.type_id {
+            return Err(Error::new_type_mismatch(
+                other.span,
+                self.type_id.clone(),
+                other.value.type_id.clone(),
+                TypeMismatchReason::BinaryOperation(BinaryOperator::GreaterThan),
+            ));
+        }
+
+        match self.type_id {
+            TypeID::Int => Ok(Self::new_bool(
+                self.as_int().unwrap() > other.value.as_int().unwrap(),
+            )),
+            TypeID::Float => Ok(Self::new_bool(
+                self.as_float().unwrap() > other.value.as_float().unwrap(),
+            )),
+            TypeID::String => Ok(Self::new_bool(
+                self.as_string().unwrap() > other.value.as_string().unwrap(),
+            )),
+            TypeID::Bool => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Void => Ok(Self::new_bool(true)),
+            TypeID::User(_) => todo!(),
+        }
+        .map(|v| Spanned::new(v, other.span))
+    }
+
+    pub fn lte(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+        self.lt(other)
+            // Value will be a bool
+            .map(|v| {
+                Self::new_bool(
+                    v.value.as_bool().unwrap() || self.eq(other).unwrap().value.as_bool().unwrap(),
+                )
+            })
+            .map(|v| Spanned::new(v, other.span))
+    }
+
+    pub fn gte(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+        self.gt(other)
+            // Value will be a bool
+            .map(|v| {
+                Self::new_bool(
+                    v.value.as_bool().unwrap() || self.eq(other).unwrap().value.as_bool().unwrap(),
+                )
+            })
+            .map(|v| Spanned::new(v, other.span))
+    }
+
     pub fn from_generic<T>(value: T) -> Self
     where
         T: Into<Self>,

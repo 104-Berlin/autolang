@@ -1,12 +1,10 @@
-fn my_func(b: float) -> float {
-    let a: float = 32.32;
-    a - b
-}
-
-fn main() -> float {
-    let a: float = my_func(32.0);
-    let b: String = "Hello World";
-    let c: int = test(32) - 6;
-    println(b + " " + a + " c: " + c);
-    123.3 + 3.1 - a
+fn main() {
+    let val: int = 3;
+    if val < 10 {
+        println("First if");
+    } else if val < 5 {
+        println("Else if");
+    } else {
+        println("Else");
+    }
 }
