@@ -299,7 +299,10 @@ impl Parser {
 
         let mut else_block = None;
 
-        while let Ok(_) = self.consume_checked(Token::Identifier(Identifier::Else)) {
+        while self
+            .consume_checked(Token::Identifier(Identifier::Else))
+            .is_ok()
+        {
             match self.consume_checked(Token::Identifier(Identifier::If)) {
                 Ok(_) => else_if_blocks.push((
                     Box::new(self.parse_expression()?),
@@ -318,8 +321,7 @@ impl Parser {
 
         Ok(Spanned::new(
             Expr::IfExpression {
-                condition,
-                then_block,
+                if_block: (condition, then_block),
                 else_if_blocks,
                 else_block,
             },
