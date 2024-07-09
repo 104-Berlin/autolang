@@ -15,7 +15,6 @@ pub enum Expr {
     Literal(Spanned<Literal>),
     Variable(Spanned<String>),
 
-    Assignment(Spanned<String>, Box<Spanned<Expr>>),
     Let(Spanned<String>, Spanned<TypeID>, Box<Spanned<Expr>>),
 
     IfExpression {
