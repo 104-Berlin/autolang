@@ -26,6 +26,8 @@ pub enum Expr {
         else_block: Option<Box<Spanned<Expr>>>,
     },
 
+    Loop(Box<Spanned<Expr>>),
+
     Block(Vec<Spanned<Expr>>, Option<Box<Spanned<Expr>>>),
 }
 
