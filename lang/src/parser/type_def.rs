@@ -12,6 +12,19 @@ pub enum TypeID {
     User(String),
 }
 
+impl TypeID {
+    pub fn from_string(s: &str) -> Self {
+        match s {
+            "int" => TypeID::Int,
+            "float" => TypeID::Float,
+            "String" => TypeID::String,
+            "bool" => TypeID::Bool,
+            "void" => TypeID::Void,
+            _ => TypeID::User(s.to_string()),
+        }
+    }
+}
+
 impl Display for TypeID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
