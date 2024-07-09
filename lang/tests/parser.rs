@@ -1,5 +1,3 @@
-use std::os::macos::raw::stat;
-
 use lang::{
     parser::{expression::Expr, type_def::TypeID, Parser},
     spanned::Spanned,
