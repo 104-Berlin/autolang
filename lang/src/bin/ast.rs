@@ -1,10 +1,7 @@
 use std::{env, fs::OpenOptions, io::BufReader};
 
-use lang::{input_stream::FileInputStream, parser::Parser, tokenizer::Tokenizer};
-use source_span::{
-    fmt::{Formatter, Style},
-    Position, Span, DEFAULT_METRICS,
-};
+use lang::{input_stream::FileInputStream, parser::Parser};
+
 use utf8_chars::BufReadCharsExt;
 
 fn main() {
@@ -14,9 +11,6 @@ fn main() {
         eprintln!("You musst provide a file to run");
         return;
     };
-
-    //let input = "fn my_func(b: float) -> float {";
-    //let input = "   ::     float";
 
     match Parser::new(FileInputStream::new(
         OpenOptions::new().read(true).open(&input_file).unwrap(),
@@ -35,5 +29,4 @@ fn main() {
             e.show_error(reader.chars().map(|c| c.map_err(|_| ())));
         }
     }
-    //let tokenizer = Tokenizer::new(input);
 }

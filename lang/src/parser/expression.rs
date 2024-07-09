@@ -82,7 +82,7 @@ impl Display for Expr {
                 "return{}",
                 expr.as_ref()
                     .map(|e| format!(" {}", e.value))
-                    .unwrap_or(format!(";"))
+                    .unwrap_or(";".to_string())
             ),
             Expr::Break => write!(f, "break"),
             Expr::Continue => write!(f, "continue"),
