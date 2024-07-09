@@ -15,6 +15,8 @@ pub enum Expr {
     Literal(Spanned<Literal>),
     Variable(Spanned<String>),
 
+    Assignment(Spanned<String>, Box<Spanned<Expr>>),
+
     Let(Spanned<String>, Spanned<TypeID>, Box<Spanned<Expr>>),
 
     IfExpression {
@@ -23,8 +25,6 @@ pub enum Expr {
         else_if_blocks: Vec<IfCondition>,
         else_block: Option<Box<Spanned<Expr>>>,
     },
-
-    Loop(Box<Spanned<Expr>>),
 
     Block(Vec<Spanned<Expr>>, Option<Box<Spanned<Expr>>>),
 }
