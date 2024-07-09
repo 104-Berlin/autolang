@@ -3,7 +3,7 @@ use source_span::Span;
 use value::Value;
 
 use crate::{
-    error::{Error, ErrorKind, ParseResult, TypeMismatchReason},
+    error::{ALResult, Error, ErrorKind, TypeMismatchReason},
     module::Module,
     parser::{
         binary_expression::{BinaryExpression, BinaryOperator},
@@ -53,7 +53,7 @@ impl<'a> ExecutionContext<'a> {
         self
     }
 
-    pub fn execute(&mut self) -> ParseResult<Value> {
+    pub fn execute(&mut self) -> ALResult<Value> {
         let func_name = if let Some(main) = self
             .public_functions
             .iter_mut()
@@ -71,7 +71,7 @@ impl<'a> ExecutionContext<'a> {
         &mut self,
         func_name: Spanned<String>,
         args: &[Spanned<Expr>],
-    ) -> ParseResult<Value> {
+    ) -> ALResult<Value> {
         // Execute input expressions to the actual values
         let input_values = args
             .iter()
@@ -103,8 +103,8 @@ impl<'a> ExecutionContext<'a> {
         &self,
         call_span: Spanned<String>,
         system: &dyn System,
-        arguments: Vec<ParseResult<Value>>,
-    ) -> ParseResult<Value> {
+        arguments: Vec<ALResult<Value>>,
+    ) -> ALResult<Value> {
         // Check for provided arguments
         /*if proto.arguments.value.len() != arguments.len() {
             return Err(Error::new_invalid_number_of_arguments(
@@ -128,8 +128,8 @@ impl<'a> ExecutionContext<'a> {
         &mut self,
         call_span: Span,
         function: &Spanned<FunctionDecl>,
-        arguments: Vec<ParseResult<Value>>,
-    ) -> ParseResult<Value> {
+        arguments: Vec<ALResult<Value>>,
+    ) -> ALResult<Value> {
         // Check for provided arguments
         if function.value.proto.value.arguments.value.len() != arguments.len() {
             return Err(Error::new_invalid_number_of_arguments(
@@ -176,7 +176,13 @@ impl<'a> ExecutionContext<'a> {
         // Push scope for the body
         self.scopes.push(scope);
 
-        let res = self.run_expr(&function.value.body)?;
+        let res = self.run_expr(&function.value.body).or_else(|err| {
+            let (kind, span) = err.split();
+            match kind {
+                ErrorKind::Return(val) => Ok(Spanned::new(val, span)),
+                _ => Err(Error::new(span, kind)),
+            }
+        })?;
 
         // Pop the scope
         self.scopes.pop();
@@ -194,7 +200,7 @@ impl<'a> ExecutionContext<'a> {
         Ok(res)
     }
 
-    fn run_expr(&mut self, expr: &Spanned<Expr>) -> ParseResult<Value> {
+    fn run_expr(&mut self, expr: &Spanned<Expr>) -> ALResult<Value> {
         match &expr.value {
             Expr::FunctionCall(name, args) => {
                 self.run_function(name.map_span(|_| expr.span), &args.value)
@@ -256,6 +262,18 @@ impl<'a> ExecutionContext<'a> {
                 value: BinaryExpression { lhs, op, rhs },
                 ..
             }) => {
+                if matches!(op.value, BinaryOperator::Assign) {
+                    if let Expr::Variable(lhs_var) = &lhs.value {
+                        let rhs = self.run_expr(rhs)?;
+                        let var = self.find_var(lhs_var)?;
+
+                        var.value.set_value(&rhs)?;
+                        return Ok(Spanned::new(rhs.value, expr.span));
+                    } else {
+                        return Err(Error::new(lhs.span, ErrorKind::InvalidAssignmentTarget));
+                    }
+                }
+
                 let lhs = self.run_expr(lhs)?;
                 let rhs = self.run_expr(rhs)?;
 
@@ -272,6 +290,8 @@ impl<'a> ExecutionContext<'a> {
                     BinaryOperator::LessThanOrEqual => lhs.value.lte(&rhs),
                     BinaryOperator::GreaterThan => lhs.value.gt(&rhs),
                     BinaryOperator::GreaterThanOrEqual => lhs.value.gte(&rhs),
+                    // Assign already covered
+                    _ => unreachable!(),
                 }
                 .map(|v| v.map_span(|_| lhs.span.union(rhs.span)))
             }
@@ -324,15 +344,36 @@ impl<'a> ExecutionContext<'a> {
             }
 
             Expr::Loop(expr) => loop {
-                self.run_expr(expr)?;
+                match self.run_expr(expr) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        let (kind, span) = err.split();
+                        match kind {
+                            ErrorKind::Break => break Ok(Spanned::new(Value::new_void(), span)),
+                            ErrorKind::Continue => continue,
+                            _ => return Err(Error::new(span, kind)),
+                        }
+                    }
+                }
             },
+
+            Expr::Return(ret_val) => {
+                let value = ret_val
+                    .as_ref()
+                    .map(|e| self.run_expr(e))
+                    .transpose()?
+                    .unwrap_or(Spanned::new(Value::new_void(), expr.span));
+                Err(Error::new(value.span, ErrorKind::Return(value.value)))
+            }
+            Expr::Break => Err(Error::new(expr.span, ErrorKind::Break)),
+            Expr::Continue => Err(Error::new(expr.span, ErrorKind::Continue)),
         }
     }
 }
 
 // Helpers
 impl ExecutionContext<'_> {
-    fn find_var(&mut self, name: &Spanned<String>) -> ParseResult<&mut Value> {
+    fn find_var(&mut self, name: &Spanned<String>) -> ALResult<&mut Value> {
         for scope in self.scopes.iter_mut().rev() {
             if let Some(value) = scope.variables.iter_mut().find_map(
                 |Spanned::<(String, Value)> {

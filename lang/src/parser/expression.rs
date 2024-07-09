@@ -29,6 +29,10 @@ pub enum Expr {
     Loop(Box<Spanned<Expr>>),
 
     Block(Vec<Spanned<Expr>>, Option<Box<Spanned<Expr>>>),
+
+    Return(Option<Box<Spanned<Expr>>>),
+    Break,
+    Continue,
 }
 
 impl Display for Expr {
@@ -73,6 +77,15 @@ impl Display for Expr {
                 write!(f, "}}")
             }
             Expr::Loop(expr) => write!(f, "loop {}", expr.value),
+            Expr::Return(expr) => write!(
+                f,
+                "return{}",
+                expr.as_ref()
+                    .map(|e| format!(" {}", e.value))
+                    .unwrap_or(format!(";"))
+            ),
+            Expr::Break => write!(f, "break"),
+            Expr::Continue => write!(f, "continue"),
         }
     }
 }

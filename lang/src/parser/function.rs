@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::spanned::Spanned;
 
 use super::{expression::Expr, type_def::TypeID};
@@ -15,4 +17,23 @@ pub struct FunctionProto {
 pub struct FunctionDecl {
     pub proto: Spanned<FunctionProto>,
     pub body: Spanned<Expr>,
+}
+
+impl Display for FunctionProto {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "fn {}(", self.name.value)?;
+        for (i, arg) in self.arguments.value.iter().enumerate() {
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}: {}", arg.0.value, arg.1.value)?;
+        }
+        write!(f, ") -> {}", self.return_type.value)
+    }
+}
+
+impl Display for FunctionDecl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {{\n{}\n}}", self.proto.value, self.body.value)
+    }
 }

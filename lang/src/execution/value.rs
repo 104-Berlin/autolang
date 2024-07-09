@@ -1,7 +1,7 @@
-use std::{any::Any, fmt::Display};
+use std::{any::Any, fmt::{Debug, Display}};
 
 use crate::{
-    error::{Error, ErrorKind, ParseResult, TypeMismatchReason},
+    error::{Error, ErrorKind, ALResult, TypeMismatchReason},
     parser::{binary_expression::BinaryOperator, type_def::TypeID},
     spanned::Spanned,
 };
@@ -79,7 +79,7 @@ impl Value {
         }
     }
 
-    pub fn set_value(&mut self, other: &Spanned<Self>) -> ParseResult<()> {
+    pub fn set_value(&mut self, other: &Spanned<Self>) -> ALResult<()> {
         if self.type_id == other.value.type_id {
             match self.type_id {
                 TypeID::Int => self.value = Box::new(other.value.as_int().unwrap()),
@@ -102,7 +102,7 @@ impl Value {
         }
     }
 
-    pub fn add(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn add(&self, other: &Spanned<Self>) -> ALResult<Self> {
         /*if self.type_id != other.value.type_id {
             return Err(Error::new_type_mismatch(
                 other.span,
@@ -162,7 +162,7 @@ impl Value {
         .map(|v| Spanned::new(v, other.span))
     }
 
-    pub fn sub(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn sub(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
             return Err(Error::new_type_mismatch(
                 other.span,
@@ -187,7 +187,7 @@ impl Value {
         .map(|v| Spanned::new(v, other.span))
     }
 
-    pub fn mul(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn mul(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
             return Err(Error::new_type_mismatch(
                 other.span,
@@ -212,7 +212,7 @@ impl Value {
         .map(|v| Spanned::new(v, other.span))
     }
 
-    pub fn div(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn div(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
             return Err(Error::new_type_mismatch(
                 other.span,
@@ -238,7 +238,7 @@ impl Value {
     }
 
     // Logical operations
-    pub fn and(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn and(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != TypeID::Bool || other.value.type_id != TypeID::Bool {
             return Err(Error::new_type_mismatch(
                 other.span,
@@ -254,7 +254,7 @@ impl Value {
         .map(|v| Spanned::new(v, other.span))
     }
 
-    pub fn or(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn or(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != TypeID::Bool || other.value.type_id != TypeID::Bool {
             return Err(Error::new_type_mismatch(
                 other.span,
@@ -274,7 +274,7 @@ impl Value {
     /// Equal function. Trys to compare two values and returns a boolean value.
     /// ### NOTE
     /// This will always return a boolean value or an error if the types dont match.
-    pub fn eq(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn eq(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
             return Err(Error::new_type_mismatch(
                 other.span,
@@ -303,14 +303,14 @@ impl Value {
         .map(|v| Spanned::new(v, other.span))
     }
 
-    pub fn neq(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn neq(&self, other: &Spanned<Self>) -> ALResult<Self> {
         self.eq(other)
             // Value will be a bool
             .map(|v| Self::new_bool(!v.value.as_bool().unwrap()))
             .map(|v| Spanned::new(v, other.span))
     }
 
-    pub fn lt(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn lt(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
             return Err(Error::new_type_mismatch(
                 other.span,
@@ -337,7 +337,7 @@ impl Value {
         .map(|v| Spanned::new(v, other.span))
     }
 
-    pub fn gt(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn gt(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
             return Err(Error::new_type_mismatch(
                 other.span,
@@ -364,7 +364,7 @@ impl Value {
         .map(|v| Spanned::new(v, other.span))
     }
 
-    pub fn lte(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn lte(&self, other: &Spanned<Self>) -> ALResult<Self> {
         self.lt(other)
             // Value will be a bool
             .map(|v| {
@@ -375,7 +375,7 @@ impl Value {
             .map(|v| Spanned::new(v, other.span))
     }
 
-    pub fn gte(&self, other: &Spanned<Self>) -> ParseResult<Self> {
+    pub fn gte(&self, other: &Spanned<Self>) -> ALResult<Self> {
         self.gt(other)
             // Value will be a bool
             .map(|v| {
@@ -405,6 +405,13 @@ impl Clone for Value {
             TypeID::User(_) => todo!(),
         }
     }
+}
+
+impl Debug for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} ({})", self.value, self.type_id)
+    }
+
 }
 
 impl From<TypeID> for Value {

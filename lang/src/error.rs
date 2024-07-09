@@ -4,12 +4,13 @@ use source_span::{
 };
 
 use crate::{
+    execution::value::Value,
     parser::{binary_expression::BinaryOperator, type_def::TypeID},
     spanned::Spanned,
     tokenizer::{token::Token, Tokenizer},
 };
 
-pub type ParseResult<T> = Result<Spanned<T>, Error>;
+pub type ALResult<T> = Result<Spanned<T>, Error>;
 
 #[derive(Debug)]
 pub struct Error {
@@ -35,6 +36,7 @@ pub enum ErrorKind {
     VariableNotFound(String),
     FunctionNotFound(String),
     VariableAlreadyDeclared(String),
+    InvalidAssignmentTarget,
 
     TypeMismatch {
         expected: TypeID,
@@ -43,6 +45,11 @@ pub enum ErrorKind {
     },
 
     NoMainFunction,
+
+    // For controll flow
+    Return(Value),
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +65,13 @@ impl std::error::Error for ErrorKind {}
 impl Error {
     pub fn new(span: Span, kind: ErrorKind) -> Error {
         Error { span, kind }
+    }
+
+    pub fn with_span(self) -> Self {
+        Self {
+            span: self.span,
+            ..self
+        }
     }
 
     pub fn new_unexpected_token(
@@ -98,6 +112,10 @@ impl Error {
 
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
+    }
+
+    pub fn split(self) -> (ErrorKind, Span) {
+        (self.kind, self.span)
     }
 
     pub fn span(&self) -> Span {
@@ -169,6 +187,7 @@ impl std::fmt::Display for ErrorKind {
             Self::VariableAlreadyDeclared(name) => {
                 write!(f, "Variable '{}' already declared", name)
             }
+            Self::InvalidAssignmentTarget => write!(f, "Invalid assignment target"),
             Self::TypeMismatch {
                 expected,
                 found,
@@ -196,6 +215,7 @@ impl std::fmt::Display for ErrorKind {
                 ),
             },
             Self::NoMainFunction => write!(f, "No main function found"),
+            Self::Break | Self::Continue | Self::Return(_) => unreachable!("Break, Continue and Return should be handled by the executor. They should never result in an error"),
         }
     }
 }
@@ -203,5 +223,14 @@ impl std::fmt::Display for ErrorKind {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         std::error::Error::source(&self.kind)
+    }
+}
+
+impl From<ErrorKind> for Error {
+    fn from(value: ErrorKind) -> Self {
+        Error {
+            kind: value,
+            span: Span::default(),
+        }
     }
 }
