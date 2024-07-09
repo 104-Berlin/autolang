@@ -10,6 +10,8 @@ use super::expression::Expr;
 
 #[derive(Debug, Clone)]
 pub enum BinaryOperator {
+    Assign,
+
     Add,
     Substract,
     Multiply,
@@ -45,6 +47,7 @@ impl BinaryExpression {
 impl BinaryOperator {
     pub fn precedence(&self) -> i16 {
         match self {
+            BinaryOperator::Assign => 1,
             BinaryOperator::Add | BinaryOperator::Substract => 100,
             BinaryOperator::Multiply | BinaryOperator::Divide => 200,
             BinaryOperator::And => 10,
@@ -77,6 +80,7 @@ impl TryFrom<Spanned<Token>> for BinaryOperator {
             Token::Identifier(Identifier::GreaterThanOrEqual) => {
                 Ok(BinaryOperator::GreaterThanOrEqual)
             }
+            Token::Identifier(Identifier::Assignment) => Ok(BinaryOperator::Assign),
             _ => Err(Error::new(span, ErrorKind::InvalidOperator)),
         }
     }
@@ -94,6 +98,7 @@ impl TryFrom<Spanned<Token>> for Spanned<BinaryOperator> {
 impl Display for BinaryOperator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            BinaryOperator::Assign => write!(f, "="),
             BinaryOperator::Add => write!(f, "+"),
             BinaryOperator::Substract => write!(f, "-"),
             BinaryOperator::Multiply => write!(f, "*"),

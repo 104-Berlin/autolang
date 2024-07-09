@@ -5,7 +5,7 @@ use source_span::Span;
 use type_def::TypeID;
 
 use crate::{
-    error::{Error, ErrorKind, ParseResult},
+    error::{ALResult, Error, ErrorKind},
     input_stream::InputStream,
     module::Module,
     spanned::Spanned,
@@ -49,7 +49,7 @@ impl TryInto<Spanned<Module>> for Parser {
 // -------------------------------------------------------------------------------------------
 // Parse Module
 impl Parser {
-    pub fn parse_module(&mut self) -> ParseResult<Module> {
+    pub fn parse_module(&mut self) -> ALResult<Module> {
         let mut module = Module::new("main");
         let mut module_span = Span::default();
 
@@ -76,7 +76,7 @@ impl Parser {
         Ok(Spanned::new(module, module_span))
     }
 
-    fn parse_function(&mut self) -> ParseResult<FunctionDecl> {
+    fn parse_function(&mut self) -> ALResult<FunctionDecl> {
         let function_name = self.parse_user_defined_identifier()?;
         let proto = self.parse_function_proto(function_name.clone())?;
         let body = self.parse_block_expression()?;
@@ -86,7 +86,7 @@ impl Parser {
         Ok(Spanned::new(FunctionDecl { proto, body }, span))
     }
 
-    fn parse_function_proto(&mut self, name: Spanned<String>) -> ParseResult<FunctionProto> {
+    fn parse_function_proto(&mut self, name: Spanned<String>) -> ALResult<FunctionProto> {
         let args = self.parse_function_args()?;
         let span = name.span.union(args.span);
         let return_type =
@@ -110,11 +110,17 @@ impl Parser {
 // -------------------------------------------------------------------------------------------
 // Parse Expression
 impl Parser {
-    pub fn parse_expression(&mut self) -> ParseResult<Expr> {
+    pub fn parse_expression(&mut self) -> ALResult<Expr> {
         match self.peek()?.value {
             Token::Identifier(Identifier::If) => self.parse_if_expression(),
+            Token::Identifier(Identifier::Loop) => self.parse_loop_expression(),
             Token::Identifier(Identifier::Let) => self.parse_let_expression(),
             Token::Identifier(Identifier::LBrace) => self.parse_block_expression(),
+            Token::Identifier(Identifier::Return) => self.parse_return_expression(),
+            Token::Identifier(Identifier::Break) => {
+                self.input.advance();
+                Ok(Spanned::new(Expr::Break, self.peek()?.span))
+            }
             _ => {
                 let lhs = self.parse_primary_expression()?;
                 self.parse_binary_expression(lhs, 0)
@@ -122,7 +128,7 @@ impl Parser {
         }
     }
 
-    fn parse_primary_expression(&mut self) -> ParseResult<Expr> {
+    fn parse_primary_expression(&mut self) -> ALResult<Expr> {
         let Spanned::<Token> { value, span } = self.peek()?;
 
         match value {
@@ -154,7 +160,7 @@ impl Parser {
     }
 
     /// This parses everything that starts with an identifier. Variables, function calls, etc.
-    fn parse_expression_identifier(&mut self, identifier: Spanned<String>) -> ParseResult<Expr> {
+    fn parse_expression_identifier(&mut self, identifier: Spanned<String>) -> ALResult<Expr> {
         if let Ok(Spanned::<Token> {
             value: Token::Identifier(Identifier::LParen),
             span,
@@ -203,7 +209,7 @@ impl Parser {
         &mut self,
         mut lhs: Spanned<Expr>,
         precendence: i16,
-    ) -> ParseResult<Expr> {
+    ) -> ALResult<Expr> {
         while let Ok(token) = self.peek() {
             let op = match Spanned::<BinaryOperator>::try_from(token) {
                 Ok(op) => op,
@@ -233,7 +239,7 @@ impl Parser {
         Ok(lhs)
     }
 
-    fn parse_block_expression(&mut self) -> ParseResult<Expr> {
+    fn parse_block_expression(&mut self) -> ALResult<Expr> {
         let mut block = Vec::new();
 
         let span = self
@@ -255,7 +261,10 @@ impl Parser {
                     break;
                 }
                 // If expressions dont need a semicolon
-                Err(_) if matches!(expr.value, Expr::IfExpression { .. }) => {
+                Err(_)
+                    if matches!(expr.value, Expr::IfExpression { .. })
+                        || matches!(expr.value, Expr::Loop(_)) =>
+                {
                     block.push(expr);
                 }
                 Err(e) => return Err(e),
@@ -270,7 +279,23 @@ impl Parser {
         Ok(Spanned::new(Expr::Block(block, return_expression), span))
     }
 
-    fn parse_let_expression(&mut self) -> ParseResult<Expr> {
+    fn parse_return_expression(&mut self) -> ALResult<Expr> {
+        let span = self
+            .consume_checked(Token::Identifier(Identifier::Return))?
+            .span;
+
+        if self.is_next_token(Token::Identifier(Identifier::Semicolon)) {
+            self.input.advance();
+            return Ok(Spanned::new(Expr::Return(None), span));
+        }
+
+        let expr = self.parse_expression()?;
+        let span = span.union(expr.span);
+
+        Ok(Spanned::new(Expr::Return(Some(Box::new(expr))), span))
+    }
+
+    fn parse_let_expression(&mut self) -> ALResult<Expr> {
         let span_start = self
             .consume_checked(Token::Identifier(Identifier::Let))?
             .span;
@@ -289,7 +314,7 @@ impl Parser {
         ))
     }
 
-    fn parse_if_expression(&mut self) -> ParseResult<Expr> {
+    fn parse_if_expression(&mut self) -> ALResult<Expr> {
         self.consume_checked(Token::Identifier(Identifier::If))?;
 
         let condition = Box::new(self.parse_expression()?);
@@ -328,13 +353,23 @@ impl Parser {
             span,
         ))
     }
+
+    fn parse_loop_expression(&mut self) -> ALResult<Expr> {
+        let loop_span = self
+            .consume_checked(Token::Identifier(Identifier::Loop))?
+            .span;
+        let expr = Box::new(self.parse_block_expression()?);
+
+        let span = loop_span.union(expr.span);
+        Ok(Spanned::new(Expr::Loop(expr), span))
+    }
 }
 
 // -------------------------------------------------------------------------------------------
 // Simple Parsers
 
 impl Parser {
-    fn parse_user_defined_identifier(&mut self) -> ParseResult<String> {
+    fn parse_user_defined_identifier(&mut self) -> ALResult<String> {
         match self.peek()? {
             Spanned::<Token> {
                 value: Token::Identifier(Identifier::UserDefined(name)),
@@ -352,7 +387,7 @@ impl Parser {
     /// This is a list of `name: type` pairs separated by commas.
     ///
     /// The list is enclosed in parentheses.
-    fn parse_function_args(&mut self) -> ParseResult<Vec<ArgumentDecl>> {
+    fn parse_function_args(&mut self) -> ALResult<Vec<ArgumentDecl>> {
         let mut args = Vec::new();
 
         let l_paren_span = self
@@ -388,7 +423,7 @@ impl Parser {
         Ok(Spanned::new(args, l_paren_span.union(r_paren_span)))
     }
 
-    fn parse_type(&mut self) -> ParseResult<TypeID> {
+    fn parse_type(&mut self) -> ALResult<TypeID> {
         match self.peek()? {
             Spanned::<Token> {
                 value: Token::Identifier(Identifier::UserDefined(type_name)),
@@ -413,7 +448,7 @@ impl Parser {
     }
 
     #[allow(dead_code)]
-    fn expect_token(&mut self, expected: Token) -> ParseResult<Token> {
+    fn expect_token(&mut self, expected: Token) -> ALResult<Token> {
         let token = self.peek()?;
 
         if token.value == expected {
@@ -423,7 +458,7 @@ impl Parser {
         }
     }
 
-    fn consume_checked(&mut self, expected: Token) -> ParseResult<Token> {
+    fn consume_checked(&mut self, expected: Token) -> ALResult<Token> {
         let token = self.peek()?;
 
         if token.value == expected {
@@ -434,7 +469,7 @@ impl Parser {
         }
     }
 
-    fn peek(&mut self) -> ParseResult<Token> {
+    fn peek(&mut self) -> ALResult<Token> {
         self.input
             .peek()
             .ok_or(Error::new(Span::default(), ErrorKind::UnexpectedEOF))

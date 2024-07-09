@@ -15,13 +15,9 @@ fn main() {
         return;
     };
 
-    //let input = "fn my_func(b: float) -> float {";
-    //let input = "   ::     float";
-
     let tokenizer = Tokenizer::new(FileInputStream::new(
         OpenOptions::new().read(true).open(&input_file).unwrap(),
     ));
-    //let tokenizer = Tokenizer::new(input);
 
     let mut formatter = Formatter::new();
     for token in tokenizer {

@@ -28,3 +28,12 @@ impl<T> Spanned<T> {
         }
     }
 }
+
+impl<T> From<T> for Spanned<T> {
+    fn from(value: T) -> Self {
+        Spanned {
+            span: Span::default(),
+            value,
+        }
+    }
+}
