@@ -276,6 +276,7 @@ impl<'a> ExecutionContext<'a> {
             Expr::IfExpression {
                 condition,
                 then_block,
+                else_if_blocks,
                 else_block,
             } => {
                 let condition = self.run_expr(*condition)?;
@@ -287,8 +288,24 @@ impl<'a> ExecutionContext<'a> {
                 ))?;
 
                 if value {
-                    self.run_expr(*then_block)
-                } else if let Some(else_block) = else_block {
+                    return self.run_expr(*then_block);
+                }
+
+                for else_if in else_if_blocks {
+                    let condition = self.run_expr(*else_if.0)?;
+                    let value = condition.value.as_bool().ok_or(Error::new_type_mismatch(
+                        condition.span,
+                        TypeID::Bool,
+                        condition.value.type_id.clone(),
+                        TypeMismatchReason::FunctionArgument,
+                    ))?;
+
+                    if value {
+                        return self.run_expr(*else_if.1);
+                    }
+                }
+
+                if let Some(else_block) = else_block {
                     self.run_expr(*else_block)
                 } else {
                     Ok(Spanned::new(Value::new_void(), expr.span))

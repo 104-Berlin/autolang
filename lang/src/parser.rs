@@ -294,12 +294,23 @@ impl Parser {
 
         let condition = Box::new(self.parse_expression()?);
         let then_block = Box::new(self.parse_block_expression()?);
-        let else_block = self
-            .consume_checked(Token::Identifier(Identifier::Else))
-            .map(|_| self.parse_block_expression())
-            .ok()
-            .transpose()?
-            .map(Box::new);
+
+        let mut else_if_blocks = Vec::new();
+
+        let mut else_block = None;
+
+        while let Ok(_) = self.consume_checked(Token::Identifier(Identifier::Else)) {
+            match self.consume_checked(Token::Identifier(Identifier::If)) {
+                Ok(_) => else_if_blocks.push((
+                    Box::new(self.parse_expression()?),
+                    Box::new(self.parse_block_expression()?),
+                )),
+                Err(_) => {
+                    else_block = Some(Box::new(self.parse_block_expression()?));
+                    break;
+                }
+            }
+        }
 
         let span = condition
             .span
@@ -309,6 +320,7 @@ impl Parser {
             Expr::IfExpression {
                 condition,
                 then_block,
+                else_if_blocks,
                 else_block,
             },
             span,

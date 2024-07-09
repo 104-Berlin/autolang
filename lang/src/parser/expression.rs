@@ -19,6 +19,8 @@ pub enum Expr {
     IfExpression {
         condition: Box<Spanned<Expr>>,
         then_block: Box<Spanned<Expr>>,
+        // Pair of condition and block
+        else_if_blocks: Vec<(Box<Spanned<Expr>>, Box<Spanned<Expr>>)>,
         else_block: Option<Box<Spanned<Expr>>>,
     },
 
@@ -45,9 +47,13 @@ impl Display for Expr {
             Expr::IfExpression {
                 condition,
                 then_block,
+                else_if_blocks,
                 else_block,
             } => {
                 write!(f, "if {} {}", condition.value, then_block.value)?;
+                for (condition, block) in else_if_blocks {
+                    write!(f, " else if {} {}", condition.value, block.value)?;
+                }
                 if let Some(else_block) = else_block {
                     write!(f, " else {}", else_block.value)?;
                 }
