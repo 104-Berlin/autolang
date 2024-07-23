@@ -6,13 +6,30 @@ use super::{binary_expression::BinaryExpression, type_def::TypeID};
 
 pub type IfCondition = (Box<Spanned<Expr>>, Box<Spanned<Expr>>);
 
+#[derive(Debug, Clone)]
+pub enum DotExpr {
+    FunctionCall(Spanned<String>, Vec<Spanned<Expr>>),
+    Variable(Spanned<String>),
+}
+
 // Something that can yield a value
 #[derive(Debug, Clone)]
 pub enum Expr {
-    FunctionCall(Spanned<String>, Spanned<Vec<Spanned<Expr>>>),
+    /// A connected series of expressions combined with dot.
+    /// # Example
+    /// ```rs
+    /// a.b().c.d(e, f)
+    /// ```
+    Dot {
+        lhs: Box<Spanned<Expr>>,
+        rhs: Spanned<DotExpr>,
+    },
+
+    FunctionCall(Spanned<String>, Vec<Spanned<Expr>>),
     Binary(Spanned<BinaryExpression>),
 
     Literal(Spanned<Literal>),
+    StructLiteral(Spanned<String>, Vec<(Spanned<String>, Spanned<Expr>)>),
     Variable(Spanned<String>),
 
     Assignment(Spanned<String>, Box<Spanned<Expr>>),
@@ -35,14 +52,51 @@ pub enum Expr {
     Continue,
 }
 
+impl From<DotExpr> for Expr {
+    fn from(value: DotExpr) -> Self {
+        match value {
+            DotExpr::FunctionCall(name, args) => Expr::FunctionCall(name, args),
+            DotExpr::Variable(name) => Expr::Variable(name),
+        }
+    }
+}
+
+impl Display for DotExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DotExpr::FunctionCall(name, args) => {
+                write!(
+                    f,
+                    "{}({})",
+                    name.value,
+                    args.iter()
+                        .map(|a| a.value.to_string())
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                )
+            }
+            DotExpr::Variable(name) => write!(f, "{}", name.value),
+        }
+    }
+}
+
 impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Expr::FunctionCall(name, _) => write!(f, "{}()", name.value),
+            Expr::Dot { lhs, rhs } => write!(f, "{}.{}", lhs.value, rhs.value),
+            Expr::FunctionCall(name, vars) => write!(
+                f,
+                "{}({})",
+                name.value,
+                vars.iter()
+                    .map(|v| format!("{}", v.value))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Expr::Binary(expr) => {
                 write!(
                     f,
-                    "({} {} {})",
+                    "{} {} {}",
                     expr.value.lhs.value, expr.value.op.value, expr.value.rhs.value
                 )
             }
@@ -51,6 +105,13 @@ impl Display for Expr {
                 write!(f, "let {}: {} = {}", var.value, type_id.value, assign.value)
             }
             Expr::Literal(literal) => write!(f, "{}", literal.value),
+            Expr::StructLiteral(name, fields) => {
+                write!(f, "{} {{", name.value)?;
+                for (field_name, field_expr) in fields.iter() {
+                    write!(f, "{}: {}, ", field_name.value, field_expr.value)?;
+                }
+                write!(f, "}}")
+            }
             Expr::Variable(name) => write!(f, "{}", name.value),
             Expr::IfExpression {
                 if_block: (if_cond, if_block),

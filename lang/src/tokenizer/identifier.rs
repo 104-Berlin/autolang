@@ -93,6 +93,9 @@ pub enum Identifier {
     Break,
     /// 'continue'
     Continue,
+
+    /// 'struct"
+    Struct,
 }
 
 impl Identifier {
@@ -110,6 +113,7 @@ impl Identifier {
             "return" => Self::Return,
             "break" => Self::Break,
             "continue" => Self::Continue,
+            "struct" => Self::Struct,
             _ => Self::UserDefined(s),
         }
     }
@@ -158,6 +162,7 @@ impl Display for Identifier {
             Identifier::Return => write!(f, "return"),
             Identifier::Break => write!(f, "break"),
             Identifier::Continue => write!(f, "continue"),
+            Identifier::Struct => write!(f, "struct"),
         }
     }
 }
