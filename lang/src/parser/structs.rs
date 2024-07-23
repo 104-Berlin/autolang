@@ -4,20 +4,18 @@ use super::type_def::TypeID;
 
 #[derive(Debug, Clone)]
 pub struct Struct {
-    pub name: Spanned<String>,
     pub fields: Vec<Spanned<(String, TypeID)>>,
 }
 
 impl Struct {
-    pub fn new_unit(name: Spanned<String>) -> Self {
+    pub fn new_unit() -> Self {
         Self {
-            name,
             fields: Vec::default(),
         }
     }
 
-    pub fn new(name: Spanned<String>, fields: Vec<Spanned<(String, TypeID)>>) -> Self {
-        Self { name, fields }
+    pub fn new(fields: Vec<Spanned<(String, TypeID)>>) -> Self {
+        Self { fields }
     }
 }
 

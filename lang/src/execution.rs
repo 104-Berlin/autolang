@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use source_span::Span;
 /// This Module is used to execute a program.
 use value::Value;
@@ -23,7 +25,7 @@ pub struct ExecutionContext<'a> {
     pub span: Span,
     pub scopes: Vec<Scope>,
     pub public_functions: Vec<&'a Spanned<FunctionDecl>>,
-    pub public_types: Vec<Spanned<TypeDef>>,
+    pub public_types: HashMap<String, Spanned<TypeDef>>,
     pub system_functions: Vec<(String, Box<dyn System>)>,
 }
 
@@ -44,7 +46,7 @@ impl<'a> ExecutionContext<'a> {
                 .value
                 .structs()
                 .iter()
-                .map(|s| Spanned::new(TypeDef::Struct(s.value.clone()), s.span))
+                .map(|s| (s.0.value.clone(), s.1.clone().map_value(TypeDef::Struct)))
                 .collect(),
         }
         .register_system_function("print", system_functions::print::print)
@@ -469,17 +471,7 @@ impl ExecutionContext<'_> {
             TypeID::Void => Ok(TypeDef::Void.into()),
 
             TypeID::User(name) => {
-                let type_def = self
-                    .public_types
-                    .iter()
-                    .find(|type_def| {
-                        if let TypeDef::Struct(s) = &type_def.value {
-                            &s.name.value == name
-                        } else {
-                            false
-                        }
-                    })
-                    .cloned();
+                let type_def = self.public_types.get(name).cloned();
 
                 type_def.ok_or(Error::new(
                     type_id.span,

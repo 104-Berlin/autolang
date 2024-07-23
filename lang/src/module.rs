@@ -6,7 +6,7 @@ use crate::{
 pub struct Module {
     name: String,
     functions: Vec<Spanned<FunctionDecl>>,
-    structs: Vec<Spanned<Struct>>,
+    structs: Vec<(Spanned<String>, Spanned<Struct>)>,
 }
 
 impl Module {
@@ -30,11 +30,11 @@ impl Module {
         &self.functions
     }
 
-    pub fn add_struct(&mut self, strct: Spanned<Struct>) {
-        self.structs.push(strct);
+    pub fn add_struct(&mut self, name: Spanned<String>, strct: Spanned<Struct>) {
+        self.structs.push((name, strct));
     }
 
-    pub fn structs(&self) -> &[Spanned<Struct>] {
+    pub fn structs(&self) -> &[(Spanned<String>, Spanned<Struct>)] {
         &self.structs
     }
 }

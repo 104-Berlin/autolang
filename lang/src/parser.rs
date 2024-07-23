@@ -65,8 +65,9 @@ impl Parser {
                 }
                 Token::Identifier(Identifier::Struct) => {
                     self.input.advance();
+                    let struct_name = self.parse_user_defined_identifier()?;
                     let struct_decl = self.parse_struct()?;
-                    module.add_struct(struct_decl);
+                    module.add_struct(struct_name, struct_decl);
                 }
                 _ => {
                     return Err(Error::new(
@@ -114,12 +115,9 @@ impl Parser {
     }
 
     fn parse_struct(&mut self) -> ALResult<Struct> {
-        let struct_name = self.parse_user_defined_identifier()?;
         let fields = self.parse_struct_fields()?;
 
-        let span = struct_name.span.union(fields.span);
-
-        Ok(Spanned::new(Struct::new(struct_name, fields.value), span))
+        Ok(Spanned::new(Struct::new(fields.value), fields.span))
     }
 
     fn parse_struct_fields(&mut self) -> ALResult<Vec<Spanned<(String, TypeID)>>> {

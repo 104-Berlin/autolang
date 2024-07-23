@@ -10,7 +10,7 @@ struct Test {
 
 fn main() {
     let t: Test = Test {
-        a: 32;
+        a: 32,
         b: Some {
             c: 23
         },
