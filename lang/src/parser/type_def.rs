@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use super::structs::Struct;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeID {
     Int,
@@ -36,4 +38,16 @@ impl Display for TypeID {
             TypeID::User(name) => write!(f, "{}", name),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum TypeDef {
+    PrimitiveInt,
+    PrimitiveFloat,
+    PrimitiveString,
+    PrimitiveBool,
+
+    Void,
+
+    Struct(Struct),
 }

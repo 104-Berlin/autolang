@@ -1,8 +1,12 @@
-use crate::{parser::function::FunctionDecl, spanned::Spanned};
+use crate::{
+    parser::{function::FunctionDecl, structs::Struct},
+    spanned::Spanned,
+};
 
 pub struct Module {
     name: String,
     functions: Vec<Spanned<FunctionDecl>>,
+    structs: Vec<(Spanned<String>, Spanned<Struct>)>,
 }
 
 impl Module {
@@ -10,6 +14,7 @@ impl Module {
         Self {
             name: name.into(),
             functions: Vec::default(),
+            structs: Vec::default(),
         }
     }
 
@@ -23,5 +28,13 @@ impl Module {
 
     pub fn functions(&self) -> &[Spanned<FunctionDecl>] {
         &self.functions
+    }
+
+    pub fn add_struct(&mut self, name: Spanned<String>, strct: Spanned<Struct>) {
+        self.structs.push((name, strct));
+    }
+
+    pub fn structs(&self) -> &[(Spanned<String>, Spanned<Struct>)] {
+        &self.structs
     }
 }

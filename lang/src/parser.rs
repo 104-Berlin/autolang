@@ -1,7 +1,8 @@
 use binary_expression::{BinaryExpression, BinaryOperator};
-use expression::Expr;
+use expression::{DotExpr, Expr};
 use function::{ArgumentDecl, FunctionDecl, FunctionProto};
 use source_span::Span;
+use structs::Struct;
 use type_def::TypeID;
 
 use crate::{
@@ -15,6 +16,7 @@ use crate::{
 pub mod binary_expression;
 pub mod expression;
 pub mod function;
+pub mod structs;
 pub mod type_def;
 
 /// Creates a parse tree from a stream of tokens.
@@ -61,6 +63,12 @@ impl Parser {
                     let function = self.parse_function()?;
                     module.add_function(function);
                 }
+                Token::Identifier(Identifier::Struct) => {
+                    self.input.advance();
+                    let struct_name = self.parse_user_defined_identifier()?;
+                    let struct_decl = self.parse_struct()?;
+                    module.add_struct(struct_name, struct_decl);
+                }
                 _ => {
                     return Err(Error::new(
                         span,
@@ -87,7 +95,7 @@ impl Parser {
     }
 
     fn parse_function_proto(&mut self, name: Spanned<String>) -> ALResult<FunctionProto> {
-        let args = self.parse_function_args()?;
+        let args = self.parse_function_args_decl()?;
         let span = name.span.union(args.span);
         let return_type =
             if let Ok(arrow) = self.consume_checked(Token::Identifier(Identifier::Arrow)) {
@@ -103,6 +111,41 @@ impl Parser {
                 return_type,
             },
             span,
+        ))
+    }
+
+    fn parse_struct(&mut self) -> ALResult<Struct> {
+        let fields = self.parse_struct_fields()?;
+
+        Ok(Spanned::new(Struct::new(fields.value), fields.span))
+    }
+
+    fn parse_struct_fields(&mut self) -> ALResult<Vec<Spanned<(String, TypeID)>>> {
+        let start_span = self
+            .consume_checked(Token::Identifier(Identifier::LBrace))?
+            .span;
+
+        let mut fields = Vec::new();
+        loop {
+            fields.push(self.parse_struct_field()?);
+
+            if let Ok(rbrace) = self.consume_checked(Token::Identifier(Identifier::RBrace)) {
+                let span = start_span.union(rbrace.span);
+
+                return Ok(Spanned::new(fields, span));
+            }
+        }
+    }
+
+    fn parse_struct_field(&mut self) -> ALResult<(String, TypeID)> {
+        let name = self.parse_user_defined_identifier()?;
+        self.consume_checked(Token::Identifier(Identifier::Colon))?;
+        let ty = self.parse_type()?;
+        self.consume_checked(Token::Identifier(Identifier::Semicolon))?;
+
+        Ok(Spanned::new(
+            (name.value, ty.value),
+            name.span.union(ty.span),
         ))
     }
 }
@@ -131,7 +174,7 @@ impl Parser {
     fn parse_primary_expression(&mut self) -> ALResult<Expr> {
         let Spanned::<Token> { value, span } = self.peek()?;
 
-        match value {
+        let mut lhs = match value {
             Token::Identifier(Identifier::UserDefined(name)) => {
                 self.input.advance();
                 self.parse_expression_identifier(Spanned::new(name, span))
@@ -156,29 +199,89 @@ impl Parser {
                     expected: None,
                 },
             )),
+        }?;
+
+        // Check if we have a dot operator
+        while self
+            .consume_checked(Token::Identifier(Identifier::Dot))
+            .is_ok()
+        {
+            let identifier = self.parse_user_defined_identifier()?;
+            let rhs = self.parse_expression_function_call_or_variable(identifier)?;
+            let span = span.union(rhs.span);
+
+            lhs = Spanned::new(
+                Expr::Dot {
+                    lhs: Box::new(lhs),
+                    rhs,
+                },
+                span,
+            );
         }
+
+        Ok(lhs)
     }
 
     /// This parses everything that starts with an identifier. Variables, function calls, etc.
     fn parse_expression_identifier(&mut self, identifier: Spanned<String>) -> ALResult<Expr> {
-        if let Ok(Spanned::<Token> {
-            value: Token::Identifier(Identifier::LParen),
-            span,
-        }) = self.peek()
-        {
-            // Parse function call
+        let peeked = self.peek()?;
+        match peeked.value {
+            // Parse Struct Literal
+            Token::Identifier(Identifier::LBrace) => {
+                self.input.advance();
+                let mut fields = Vec::new();
+                loop {
+                    let name = self.parse_user_defined_identifier()?;
+                    self.consume_checked(Token::Identifier(Identifier::Colon))?;
+                    let expr = self.parse_expression()?;
+
+                    fields.push((name, expr));
+
+                    // No Comma? Next token must be RBrace
+                    if self
+                        .consume_checked(Token::Identifier(Identifier::Comma))
+                        .is_err()
+                    {
+                        break;
+                    }
+
+                    // If we have a comma, we expect another field or the end of the struct
+                    if self.is_next_token(Token::Identifier(Identifier::RBrace)) {
+                        break;
+                    }
+                }
+                let r_brace_span = self
+                    .consume_checked(Token::Identifier(Identifier::RBrace))?
+                    .span;
+
+                let span = identifier.span.union(r_brace_span);
+
+                Ok(Spanned::new(Expr::StructLiteral(identifier, fields), span))
+            }
+            // Parse Variable or Function call
+            _ => self
+                .parse_expression_function_call_or_variable(identifier)
+                .map(|expr| expr.map_value(Into::into)),
+        }
+    }
+
+    fn parse_expression_function_call_or_variable(
+        &mut self,
+        identifier: Spanned<String>,
+    ) -> ALResult<DotExpr> {
+        let peeked = self.peek()?;
+        if let Token::Identifier(Identifier::LParen) = peeked.value {
             self.input.advance();
             let mut args = Vec::new();
-            let mut args_span = span.next();
             loop {
                 if let Ok(input) = self.parse_expression() {
-                    args_span.append(input.span);
                     args.push(input);
                 }
 
-                if let Ok(comma) = self.consume_checked(Token::Identifier(Identifier::Comma)) {
-                    args_span.append(comma.span);
-                } else {
+                if self
+                    .consume_checked(Token::Identifier(Identifier::Comma))
+                    .is_err()
+                {
                     break;
                 }
             }
@@ -188,13 +291,10 @@ impl Parser {
 
             let span = identifier.span.union(r_paren_span);
 
-            Ok(Spanned::new(
-                Expr::FunctionCall(identifier, Spanned::new(args, args_span)),
-                span,
-            ))
+            Ok(Spanned::new(DotExpr::FunctionCall(identifier, args), span))
         } else {
             let span = identifier.span;
-            Ok(Spanned::new(Expr::Variable(identifier), span))
+            Ok(Spanned::new(DotExpr::Variable(identifier), span))
         }
     }
 
@@ -387,7 +487,7 @@ impl Parser {
     /// This is a list of `name: type` pairs separated by commas.
     ///
     /// The list is enclosed in parentheses.
-    fn parse_function_args(&mut self) -> ALResult<Vec<ArgumentDecl>> {
+    fn parse_function_args_decl(&mut self) -> ALResult<Vec<ArgumentDecl>> {
         let mut args = Vec::new();
 
         let l_paren_span = self
@@ -464,6 +564,9 @@ impl Parser {
         }
     }
 
+    /// Peeks the next token in the input stream.
+    /// # Errors
+    /// Returns ErrorKind::UnexpectedEOF if the input stream is empty.
     fn peek(&mut self) -> ALResult<Token> {
         self.input
             .peek()

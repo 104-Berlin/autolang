@@ -5,7 +5,10 @@ use source_span::{
 
 use crate::{
     execution::value::Value,
-    parser::{binary_expression::BinaryOperator, type_def::TypeID},
+    parser::{
+        binary_expression::BinaryOperator,
+        type_def::{TypeDef, TypeID},
+    },
     spanned::Spanned,
     tokenizer::{token::Token, Tokenizer},
 };
@@ -14,7 +17,7 @@ pub type ALResult<T> = Result<Spanned<T>, Error>;
 
 #[derive(Debug)]
 pub struct Error {
-    kind: ErrorKind,
+    kind: Box<ErrorKind>,
     span: Span,
 }
 
@@ -43,6 +46,12 @@ pub enum ErrorKind {
         found: TypeID,
         reason: TypeMismatchReason,
     },
+    TypeNotFound(String),
+
+    StructFieldNotInitialized(String),
+    StructFieldNotFound(String),
+
+    FailedToAccessField(TypeDef),
 
     NoMainFunction,
 
@@ -64,7 +73,7 @@ impl std::error::Error for ErrorKind {}
 
 impl Error {
     pub fn new(span: Span, kind: ErrorKind) -> Error {
-        Error { span, kind }
+        Error { span, kind: Box::new(kind) }
     }
 
     pub fn with_span(self) -> Self {
@@ -115,7 +124,7 @@ impl Error {
     }
 
     pub fn split(self) -> (ErrorKind, Span) {
-        (self.kind, self.span)
+        (*self.kind, self.span)
     }
 
     pub fn span(&self) -> Span {
@@ -214,6 +223,18 @@ impl std::fmt::Display for ErrorKind {
                     expected, found
                 ),
             },
+            Self::TypeNotFound (name) => write!(f, "Type '{}' was not found", name),
+            Self::StructFieldNotInitialized(name) => write!(f, "Field '{}' was not initialized", name),
+            Self::StructFieldNotFound(name) => write!(f, "Field '{}' was not found in struct", name),
+            Self::FailedToAccessField(type_def) => match type_def {
+                TypeDef::PrimitiveInt | 
+                TypeDef::PrimitiveFloat |
+                TypeDef::PrimitiveString |
+                TypeDef::PrimitiveBool => write!(f, "Primitive values do not have fields"),
+
+                TypeDef::Void => write!(f, "Void does not have fields"),
+                TypeDef::Struct(_) => write!(f, "Failed to access field of struct"),
+            },
             Self::NoMainFunction => write!(f, "No main function found"),
             Self::Break | Self::Continue | Self::Return(_) => unreachable!("Break, Continue and Return should be handled by the executor. They should never result in an error"),
         }
@@ -229,7 +250,7 @@ impl std::error::Error for Error {
 impl From<ErrorKind> for Error {
     fn from(value: ErrorKind) -> Self {
         Error {
-            kind: value,
+            kind: Box::new(value),
             span: Span::default(),
         }
     }

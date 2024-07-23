@@ -1,8 +1,11 @@
-use std::{any::Any, fmt::{Debug, Display}};
+use std::{
+    any::Any,
+    fmt::{Debug, Display},
+};
 
 use crate::{
-    error::{Error, ErrorKind, ALResult, TypeMismatchReason},
-    parser::{binary_expression::BinaryOperator, type_def::TypeID},
+    error::{ALResult, Error, ErrorKind, TypeMismatchReason},
+    parser::{binary_expression::BinaryOperator, structs::StructValue, type_def::TypeID},
     spanned::Spanned,
 };
 
@@ -47,6 +50,13 @@ impl Value {
         }
     }
 
+    pub fn new_struct(name: String, value: StructValue) -> Self {
+        Self {
+            value: Box::new(value),
+            type_id: TypeID::User(name),
+        }
+    }
+
     pub fn as_int(&self) -> Option<i64> {
         if self.type_id == TypeID::Int {
             self.value.downcast_ref::<i64>().cloned()
@@ -74,6 +84,14 @@ impl Value {
     pub fn as_string(&self) -> Option<&str> {
         if self.type_id == TypeID::String {
             self.value.downcast_ref::<String>().map(|s| s.as_str())
+        } else {
+            None
+        }
+    }
+
+    pub fn as_struct(&self) -> Option<&StructValue> {
+        if matches!(self.type_id, TypeID::User(_)) {
+            self.value.downcast_ref::<StructValue>()
         } else {
             None
         }
@@ -396,13 +414,13 @@ impl Value {
 
 impl Clone for Value {
     fn clone(&self) -> Self {
-        match self.type_id {
+        match &self.type_id {
             TypeID::Int => Self::new_int(self.as_int().unwrap()),
             TypeID::Float => Self::new_float(self.as_float().unwrap()),
             TypeID::String => Self::new_string(self.as_string().unwrap().to_string()),
             TypeID::Bool => Self::new_bool(self.as_bool().unwrap()),
             TypeID::Void => Self::new_void(),
-            TypeID::User(_) => todo!(),
+            TypeID::User(name) => Self::new_struct(name.clone(), self.as_struct().unwrap().clone()),
         }
     }
 }
@@ -411,7 +429,6 @@ impl Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} ({})", self.value, self.type_id)
     }
-
 }
 
 impl From<TypeID> for Value {

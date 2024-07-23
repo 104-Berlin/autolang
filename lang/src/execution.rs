@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use source_span::Span;
 /// This Module is used to execute a program.
 use value::Value;
@@ -7,9 +9,10 @@ use crate::{
     module::Module,
     parser::{
         binary_expression::{BinaryExpression, BinaryOperator},
-        expression::Expr,
+        expression::{DotExpr, Expr},
         function::FunctionDecl,
-        type_def::TypeID,
+        structs::StructValue,
+        type_def::{TypeDef, TypeID},
     },
     spanned::Spanned,
     system_functions::{self, IntoSystem, System},
@@ -22,6 +25,7 @@ pub struct ExecutionContext<'a> {
     pub span: Span,
     pub scopes: Vec<Scope>,
     pub public_functions: Vec<&'a Spanned<FunctionDecl>>,
+    pub public_types: HashMap<String, Spanned<TypeDef>>,
     pub system_functions: Vec<(String, Box<dyn System>)>,
 }
 
@@ -38,6 +42,12 @@ impl<'a> ExecutionContext<'a> {
             span: module.span,
             public_functions: module.value.functions().iter().collect(),
             system_functions: Vec::with_capacity(4),
+            public_types: module
+                .value
+                .structs()
+                .iter()
+                .map(|s| (s.0.value.clone(), s.1.clone().map_value(TypeDef::Struct)))
+                .collect(),
         }
         .register_system_function("print", system_functions::print::print)
         .register_system_function("println", system_functions::print::println)
@@ -202,9 +212,32 @@ impl<'a> ExecutionContext<'a> {
 
     fn run_expr(&mut self, expr: &Spanned<Expr>) -> ALResult<Value> {
         match &expr.value {
-            Expr::FunctionCall(name, args) => {
-                self.run_function(name.map_span(|_| expr.span), &args.value)
+            Expr::Dot { lhs, rhs } => {
+                let span = lhs.span;
+                let lhs = self.run_expr(lhs)?;
+                match &rhs.value {
+                    DotExpr::Variable(name) => {
+                        let type_def =
+                            self.find_type_def(&lhs.clone().map_value(|value| value.type_id))?;
+                        match type_def.value {
+                            TypeDef::Struct(strct) => {
+                                strct.fields.iter().position(|f| f.value.0 == name.value).map(
+                                    |index| lhs
+                                                    .value
+                                                    .as_struct()
+                                                    .expect("Value ist not a struct. Can't happen, because we check if type is struct")
+                                                    .get_field(index)
+                                                    .expect("Field must exist. Or we try to access wrong struct")
+                                                    .clone()
+                                ).ok_or(Error::new(expr.span, ErrorKind::StructFieldNotFound(name.value.clone())))
+                            }
+                            _ => Err(Error::new(span.next().union(name.span), ErrorKind::FailedToAccessField(type_def.value))),
+                        }
+                    }
+                    _ => unimplemented!(),
+                }
             }
+            Expr::FunctionCall(name, args) => self.run_function(name.map_span(|_| expr.span), args),
             Expr::Variable(name) => {
                 let var = self.find_var(name)?;
                 Ok(Spanned::new(var.value.clone(), name.span))
@@ -217,6 +250,44 @@ impl<'a> ExecutionContext<'a> {
                 }
                 Literal::Bool(val) => Ok(Spanned::new(Value::new_bool(*val), literal.span)),
             },
+            Expr::StructLiteral(name, fields) => {
+                let Spanned::<TypeDef> { value, .. } =
+                    self.find_type_def(&name.clone().map_value(TypeID::User))?;
+
+                let TypeDef::Struct(strct) = value else {
+                    return Err(Error::new(
+                        name.span,
+                        ErrorKind::TypeNotFound(name.value.clone()),
+                    ));
+                };
+
+                let mut struct_value = StructValue::default();
+                for field in strct.fields.iter() {
+                    let field = fields
+                        .iter()
+                        .find(|f| f.0.value == field.value.0)
+                        .map(|f| self.run_expr(&f.1))
+                        .ok_or(Error::new(
+                            expr.span,
+                            ErrorKind::StructFieldNotInitialized(field.value.0.clone()),
+                        ))??;
+                    struct_value.push_field(field);
+                }
+                // Check if we try to initialize a field that is not in the struct
+                for field in fields {
+                    if !strct.fields.iter().any(|f| f.value.0 == field.0.value) {
+                        return Err(Error::new(
+                            field.0.span,
+                            ErrorKind::StructFieldNotFound(field.0.value.clone()),
+                        ));
+                    }
+                }
+
+                Ok(Spanned::new(
+                    Value::new_struct(name.value.clone(), struct_value),
+                    expr.span,
+                ))
+            }
             Expr::Assignment(var, expr) => {
                 let val = self.run_expr(expr)?;
                 let var = self.find_var(var)?;
@@ -389,5 +460,24 @@ impl ExecutionContext<'_> {
             name.span,
             ErrorKind::VariableNotFound(name.value.clone()),
         ))
+    }
+
+    fn find_type_def(&mut self, type_id: &Spanned<TypeID>) -> ALResult<TypeDef> {
+        match &type_id.value {
+            TypeID::Int => Ok(TypeDef::PrimitiveInt.into()),
+            TypeID::Float => Ok(TypeDef::PrimitiveFloat.into()),
+            TypeID::String => Ok(TypeDef::PrimitiveString.into()),
+            TypeID::Bool => Ok(TypeDef::PrimitiveBool.into()),
+            TypeID::Void => Ok(TypeDef::Void.into()),
+
+            TypeID::User(name) => {
+                let type_def = self.public_types.get(name).cloned();
+
+                type_def.ok_or(Error::new(
+                    type_id.span,
+                    ErrorKind::TypeNotFound(name.clone()),
+                ))
+            }
+        }
     }
 }
