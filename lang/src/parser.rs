@@ -401,7 +401,10 @@ impl Parser {
             .span;
         let var_name = self.parse_user_defined_identifier()?;
 
-        let type_id = if let Ok(_) = self.consume_checked(Token::Identifier(Identifier::Colon)) {
+        let type_id = if self
+            .consume_checked(Token::Identifier(Identifier::Colon))
+            .is_ok()
+        {
             Some(self.parse_type()?)
         } else {
             None
