@@ -250,11 +250,11 @@ impl<'a> ExecutionContext<'a> {
                 }
                 Literal::Bool(val) => Ok(Spanned::new(Value::new_bool(*val), literal.span)),
             },
-            Expr::StructLiteral(name, fields) => {
+            Expr::StructLiteral(name, field_inits) => {
                 let Spanned::<TypeDef> { value, .. } =
                     self.find_type_def(&name.clone().map_value(TypeID::User))?;
 
-                let TypeDef::Struct(strct) = value else {
+                let TypeDef::Struct(struct_def) = value else {
                     return Err(Error::new(
                         name.span,
                         ErrorKind::TypeNotFound(name.value.clone()),
@@ -262,20 +262,30 @@ impl<'a> ExecutionContext<'a> {
                 };
 
                 let mut struct_value = StructValue::default();
-                for field in strct.fields.iter() {
-                    let field = fields
+                for struct_def_field in struct_def.fields.iter() {
+                    let field = field_inits
                         .iter()
-                        .find(|f| f.0.value == field.value.0)
+                        .find(|f| f.0.value == struct_def_field.value.0)
                         .map(|f| self.run_expr(&f.1))
                         .ok_or(Error::new(
                             expr.span,
-                            ErrorKind::StructFieldNotInitialized(field.value.0.clone()),
+                            ErrorKind::StructFieldNotInitialized(struct_def_field.value.0.clone()),
                         ))??;
+
+                    // Handle invalid type
+                    if field.value.type_id != struct_def_field.value.1 {
+                        return Err(Error::new_type_mismatch(
+                            field.span,
+                            struct_def_field.value.1.clone(),
+                            field.value.type_id,
+                            TypeMismatchReason::VariableAssignment,
+                        ));
+                    }
                     struct_value.push_field(field);
                 }
                 // Check if we try to initialize a field that is not in the struct
-                for field in fields {
-                    if !strct.fields.iter().any(|f| f.value.0 == field.0.value) {
+                for field in field_inits {
+                    if !struct_def.fields.iter().any(|f| f.value.0 == field.0.value) {
                         return Err(Error::new(
                             field.0.span,
                             ErrorKind::StructFieldNotFound(field.0.value.clone()),
@@ -312,13 +322,15 @@ impl<'a> ExecutionContext<'a> {
 
                 let value = self.run_expr(assign)?.value;
 
-                if value.type_id != type_id.value {
-                    return Err(Error::new_type_mismatch(
-                        span,
-                        type_id.value.clone(),
-                        value.type_id,
-                        TypeMismatchReason::VariableAssignment,
-                    ));
+                if let Some(type_id) = type_id {
+                    if value.type_id != type_id.value {
+                        return Err(Error::new_type_mismatch(
+                            span,
+                            type_id.value.clone(),
+                            value.type_id,
+                            TypeMismatchReason::VariableAssignment,
+                        ));
+                    }
                 }
 
                 self.scopes
