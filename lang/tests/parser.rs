@@ -1,8 +1,4 @@
-use lang::{
-    execution::ExecutionContext,
-    parser::{expression::Expr, type_def::TypeID, Parser},
-    spanned::Spanned,
-};
+use lang::{execution::ExecutionContext, parser::Parser};
 
 #[test]
 fn test_full_language_parser() {
