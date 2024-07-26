@@ -34,7 +34,7 @@ pub enum Expr {
 
     Assignment(Spanned<String>, Box<Spanned<Expr>>),
 
-    Let(Spanned<String>, Spanned<TypeID>, Box<Spanned<Expr>>),
+    Let(Spanned<String>, Option<Spanned<TypeID>>, Box<Spanned<Expr>>),
 
     IfExpression {
         if_block: IfCondition,
@@ -101,9 +101,12 @@ impl Display for Expr {
                 )
             }
             Expr::Assignment(var, expr) => write!(f, "{} = {}", var.value, expr.value),
-            Expr::Let(var, type_id, assign) => {
-                write!(f, "let {}: {} = {}", var.value, type_id.value, assign.value)
-            }
+            Expr::Let(var, type_id, assign) => match &type_id {
+                Some(type_id) => {
+                    write!(f, "let {}: {} = {}", var.value, type_id.value, assign.value)
+                }
+                None => write!(f, "let {} = {}", var.value, assign.value),
+            },
             Expr::Literal(literal) => write!(f, "{}", literal.value),
             Expr::StructLiteral(name, fields) => {
                 write!(f, "{} {{", name.value)?;

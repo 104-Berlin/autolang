@@ -16,23 +16,23 @@ fn test_full_language_parser() {
         assert_eq!(statements.len(), 5);
         assert!(matches!(
             &statements[0].value,
-            Expr::Let(Spanned { value, .. }, Spanned { value: TypeID::Int, .. }, _) if &value == &"a"
+            Expr::Let(Spanned { value, .. }, Some(Spanned { value: TypeID::Int, .. }), _) if &value == &"a"
         ));
         assert!(matches!(
             &statements[1].value,
-            Expr::Let(Spanned { value, .. }, Spanned { value: TypeID::Float, .. }, _) if &value == &"b"
+            Expr::Let(Spanned { value, .. }, Some(Spanned { value: TypeID::Float, .. }), _) if &value == &"b"
         ));
         assert!(matches!(
             &statements[2].value,
-            Expr::Let(Spanned { value, .. }, Spanned { value: TypeID::Bool, .. }, _) if &value == &"c"
+            Expr::Let(Spanned { value, .. }, Some(Spanned { value: TypeID::Bool, .. }), _) if &value == &"c"
         ));
         assert!(matches!(
             &statements[3].value,
-            Expr::Let(Spanned { value, .. }, Spanned { value: TypeID::Bool, .. }, _) if &value == &"d"
+            Expr::Let(Spanned { value, .. }, Some(Spanned { value: TypeID::Bool, .. }), _) if &value == &"d"
         ));
         assert!(matches!(
             dbg!(&statements[4].value),
-            Expr::Let(Spanned { value, .. }, Spanned { value: TypeID::String, .. }, _) if &value == &"e"
+            Expr::Let(Spanned { value, .. }, Some(Spanned { value: TypeID::String, .. }), _) if &value == &"e"
         ));
 
         assert!(matches!(return_value, None));

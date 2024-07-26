@@ -3,20 +3,20 @@ struct Some {
 }
 
 struct Test {
-    a: int;
+    a: float;
     b: Some;
 }
 
 
 fn main() {
-    let t: Test = Test {
-        a: 32,
+    let t = Test {
+        a: 0.1,
         b: Some {
             c: 23
         },
     };
 
-    let x:int = t.a;
+    let x = t.a;
 
 
     println("" + x);
