@@ -12,9 +12,14 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 name = "lang"
 version = "0.1.0"
 dependencies = [
+ "reset_iterator",
  "source-span",
  "utf8-chars",
 ]
+
+[[package]]
+name = "reset_iterator"
+version = "0.1.0"
 
 [[package]]
 name = "source-span"

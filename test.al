@@ -7,6 +7,9 @@ struct Test {
     b: Some;
 }
 
+struct IfCheck {
+    val: bool;
+}
 
 fn main() {
     let t = Test {
@@ -17,6 +20,10 @@ fn main() {
     };
 
     let x = t.a;
+
+    if IfCheck { val: true }.val {
+        println("True");
+    }
 
 
     println("" + x);
