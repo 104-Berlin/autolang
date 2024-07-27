@@ -11,6 +11,8 @@ pub mod identifier;
 pub mod literal;
 pub mod token;
 
+/// A simple tokenizer that tokenizes a stream of characters into tokens.
+/// The tokenizer is implemented as an iterator that yields tokens.
 pub struct Tokenizer {
     input: Box<dyn InputStream<Output = char>>,
     span: Span,
@@ -19,6 +21,25 @@ pub struct Tokenizer {
 impl Tokenizer {
     pub const METRICS: source_span::DefaultMetrics = DefaultMetrics::new();
 
+    /// Creates a new tokenizer with the given input stream.
+    /// The input stream must yield characters.
+    ///
+    /// # Example
+    /// ```
+    /// use lang::tokenizer::Tokenizer;
+    ///
+    /// // Using a string as input
+    /// let input = "let x = 42;";
+    /// let tokenizer = Tokenizer::new(input);
+    ///
+    /// // Using a file as input
+    /// let file = std::fs::File::open("path/to/file").unwrap();
+    /// let tokenizer = Tokenizer::new(lang::input_stream::FileInputStream::new(file));
+    ///
+    /// for token in tokenizer {
+    ///     // ...
+    /// }
+    /// ```
     pub fn new(input: impl InputStream<Output = char> + 'static) -> Self {
         Self {
             input: Box::new(input),
@@ -26,6 +47,8 @@ impl Tokenizer {
         }
     }
 
+    /// Returns the next token in the input stream.
+    /// If the input stream is empty, `None` is returned.
     pub fn next_token(&mut self) -> Option<Spanned<Token>> {
         while let Some(c) = self.input.peek().filter(|c| c.is_whitespace()) {
             self.input.advance();
@@ -183,6 +206,7 @@ impl Tokenizer {
         }
     }
 
+    /// Parses a string literal. So everything between two double quotes.
     fn parse_string_literal(&mut self) -> Spanned<Token> {
         let mut string = String::new();
 
@@ -208,6 +232,10 @@ impl Tokenizer {
         Spanned::new(Token::Literal(Literal::String(string)), self.span)
     }
 
+    /// Parses a number literal starting with the given character.
+    /// A number literal is a sequence of digits and an optional decimal point.
+    ///
+    /// Returns a `Token::Literal` with the parsed number.
     fn parse_number_literal(&mut self, first_char: char) -> Spanned<Token> {
         let mut number = String::new();
         number.push(first_char);
@@ -235,6 +263,8 @@ impl Tokenizer {
         }
     }
 
+    /// Parses an identifier starting with the given character.
+    /// An identifier is a sequence of alphanumeric characters and underscores.
     fn parse_identifier(&mut self, first_char: char) -> Spanned<Token> {
         let mut identifier = String::new();
         identifier.push(first_char);
