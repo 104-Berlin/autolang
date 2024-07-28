@@ -27,9 +27,11 @@ pub mod type_def;
 ///
 /// let input = "let x: i32 = 42;";
 /// let mut parser = Parser::new(input);
-/// let expr: Spanned<Expr> = parser.try_into().unwrap();
+/// let expr = parser.parse_expression().unwrap();
 /// // Or
-/// let expr = parser.parse_expression();
+/// let mut parser = Parser::new(input);
+/// let expr: Spanned<Expr> = parser.try_into().unwrap();
+/// ```
 pub struct Parser {
     input: ResetIterator<Tokenizer>,
 }

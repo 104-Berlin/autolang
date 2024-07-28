@@ -26,15 +26,16 @@ impl Tokenizer {
     ///
     /// # Example
     /// ```
-    /// use lang::tokenizer::Tokenizer;
+    /// use lang::prelude::*;
     ///
     /// // Using a string as input
     /// let input = "let x = 42;";
     /// let tokenizer = Tokenizer::new(input);
     ///
     /// // Using a file as input
-    /// let file = std::fs::File::open("path/to/file").unwrap();
-    /// let tokenizer = Tokenizer::new(lang::input_stream::FileInputStream::new(file));
+    /// if let Ok(file) = std::fs::File::open("path/to/file") {
+    ///     let tokenizer = Tokenizer::new(FileInputStream::new(file));
+    /// }
     ///
     /// for token in tokenizer {
     ///     // ...
