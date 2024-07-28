@@ -20,12 +20,26 @@ pub mod function;
 pub mod structs;
 pub mod type_def;
 
-/// Creates a parse tree from a stream of tokens.
+/// A parse tree from a stream of tokens.
+/// # Example
+/// ```rust
+/// use lang::prelude::*;
+///
+/// let input = "let x: i32 = 42;";
+/// let mut parser = Parser::new(input);
+/// let expr: Spanned<Expr> = parser.try_into().unwrap();
+/// // Or
+/// let expr = parser.parse_expression();
 pub struct Parser {
     input: ResetIterator<Tokenizer>,
 }
 
 impl Parser {
+    /// Creates a new parser from an input stream.
+    /// # Arguments
+    /// * `input` - The input stream to parse.
+    /// # Returns
+    /// A new parser.
     pub fn new(input: impl InputStream<Output = char> + 'static) -> Self {
         Self {
             input: Tokenizer::new(input).into(),
