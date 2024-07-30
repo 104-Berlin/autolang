@@ -1,3 +1,5 @@
 /target
 .DS_Store
 /.vscode
+frontend/output.css
+frontend/dist
