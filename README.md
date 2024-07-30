@@ -22,17 +22,17 @@ If you want to see all the tokens of an input file. (see also [#23](https://gith
 
 ### Prerequisites
 
-- Tailwind[https://tailwindcss.com/]
+- [Tailwind](https://tailwindcss.com/)
 
   Can be done via
 
   `npm install -g tailwindcss`
 
-- Trunk[https://trunkrs.dev/]
+- [Trunk](https://trunkrs.dev/)
 
 ### Windows
 
-To run the fronend on windows you unfortunately remove the pre_build hook from the Trunk.toml[/frontend/Trunk.toml].
+To run the fronend on windows you unfortunately remove the pre_build hook from the [Trunk.toml](/frontend/Trunk.toml).
 
 ```
 # [[hooks]]
