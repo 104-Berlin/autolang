@@ -2,6 +2,8 @@ use views::prelude::*;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
+mod api;
+mod components;
 mod views;
 
 #[derive(Clone, Routable, PartialEq, Debug)]
@@ -23,7 +25,7 @@ fn App() -> Html {
             <header>
                 <nav class="flex bg-white border-gray-200 px-4 lg:px-6">
                     <div class="flex">
-                        <a href="/" class="flex items-center py-4 px-2">
+                        <a href="/" >
                             {"Home"}
                         </a>
                         <a href="/scripts" class="flex items-center py-4 px-2">

@@ -1,19 +1,17 @@
+use crate::components::prelude::*;
 use yew::prelude::*;
 
 #[function_component(Register)]
 pub fn register() -> Html {
+    let on_submit = { Callback::from(move |event: SubmitEvent| {}) };
+
     html! {
         <div class="flex flex-col min-h-full justify-center">
-            <form action="#" mathod="POST" class="space-y-6">
-                <div class="flex flex-col">
-                    <label for="username" class="block text-sm font-medium leading-6 text-gray-900">{"Username"}</label>
-                    <div>
-                        <input type="text" id="username" name="username"
-                                class= "block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300
-                                    placeholder:text-gray-400 
-                                        focus:ring-2 focus:ring-inset focus:ring-indigo-600 
-                                        sm:text-sm sm:leading-6" />
-                    </div>
+            <form action="/register" mathod="POST" class="space-y-6">
+                <div class="flex flex-col mx-4 lg:mx-40">
+                    <FormInput label="Username" name="username" />
+                    <FormInput input_type={InputType::Email} label="Email" name="email" />
+                    <FormInput input_type={InputType::Password} label="Password" name="password" />
                 </div>
                 <div class="flex flex-col">
                     <button type="submit">{"Register"}</button>
