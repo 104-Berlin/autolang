@@ -1,0 +1,15 @@
+[[proxy]]
+rewrite = "/api/v1/"
+backend = "http://localhost:25565"
+
+# [[hooks]]
+# stage = "pre_build"
+# command = "tailwindcss"
+# command_arguments = [
+#     "-i",
+#     "input.css",
+#     "-c",
+#     "tailwind.config.js",
+#     "-o",
+#     "output.css",
+# ]
