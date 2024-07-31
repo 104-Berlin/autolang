@@ -4,6 +4,7 @@ use yew_router::prelude::*;
 
 mod api;
 mod components;
+mod error;
 mod views;
 
 #[derive(Clone, Routable, PartialEq, Debug)]
@@ -25,7 +26,7 @@ fn App() -> Html {
             <header>
                 <nav class="flex bg-white border-gray-200 px-4 lg:px-6">
                     <div class="flex">
-                        <a href="/" >
+                        <a href="/" class="flex items-center py-4 px-2">
                             {"Home"}
                         </a>
                         <a href="/scripts" class="flex items-center py-4 px-2">
