@@ -15,6 +15,7 @@ pub enum Error {
 pub enum ApiError {
     NetworkError(NetworkError),
     JsonError(JsonError),
+    RequestFailed(String),
 }
 
 impl StdError for Error {}
@@ -26,15 +27,15 @@ impl From<ApiError> for Error {
     }
 }
 
-impl From<NetworkError> for ApiError {
+impl From<NetworkError> for Error {
     fn from(error: NetworkError) -> Self {
-        ApiError::NetworkError(error)
+        Self::ApiError(ApiError::NetworkError(error))
     }
 }
 
-impl From<JsonError> for ApiError {
+impl From<JsonError> for Error {
     fn from(error: JsonError) -> Self {
-        ApiError::JsonError(error)
+        Self::ApiError(ApiError::JsonError(error))
     }
 }
 
@@ -51,6 +52,7 @@ impl Display for ApiError {
         match self {
             Self::JsonError(json_error) => write!(f, "JSON ERROR: {}", json_error),
             Self::NetworkError(network_error) => write!(f, "NETWORK ERROR: {}", network_error),
+            Self::RequestFailed(name) => write!(f, "Request failed: {}", name),
         }
     }
 }

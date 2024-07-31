@@ -17,6 +17,9 @@ enum Route {
     Login,
     #[at("/register")]
     Register,
+
+    #[at("/admin")]
+    Admin,
 }
 
 #[function_component]
@@ -31,6 +34,9 @@ fn App() -> Html {
                         </a>
                         <a href="/scripts" class="flex items-center py-4 px-2">
                             {"Scripts"}
+                        </a>
+                        <a href="/admin" class="flex items-center py-4 px-2">
+                            {"Admin"}
                         </a>
                     </div>
                     <div class="flex ml-auto">
@@ -56,6 +62,7 @@ fn switch(routes: Route) -> Html {
         Route::Scripts => html! { <div>{"Scripts not implemented"}</div> },
         Route::Login => html! { <Login /> },
         Route::Register => html! { <Register /> },
+        Route::Admin => html! { <Admin /> },
     }
 }
 
