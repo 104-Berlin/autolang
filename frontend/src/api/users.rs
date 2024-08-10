@@ -1,4 +1,4 @@
-use common::User;
+use common::schemas::User;
 use gloo_net::http::{Method, Request};
 
 use crate::error::{ApiError, Error};

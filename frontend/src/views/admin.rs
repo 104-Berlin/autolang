@@ -1,4 +1,4 @@
-use common::User;
+use common::schemas::User;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 

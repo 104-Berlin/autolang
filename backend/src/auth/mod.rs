@@ -3,6 +3,8 @@ use argon2::{hash_encoded, Config};
 use hex::encode;
 use sha2::{Digest, Sha256};
 
+pub mod middleware;
+
 /// Generate a 32 byte token as hex string
 pub fn generate_token() -> anyhow::Result<String> {
     let mut token = [0u8; 32];
