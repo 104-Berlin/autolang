@@ -21,7 +21,21 @@ fn main() -> VMResult<()> {
         .finish();
     memory[3002] = InstructionWriter::new(OpCode::Imm)
         .write(Register::RA2)
-        .write(Arg20(-3i16 as u32))
+        .write(Arg20(-3i8 as u32))
+        .finish();
+    memory[3003] = InstructionWriter::new(OpCode::Add)
+        .write(Register::RA3) // DST
+        .write(false) // Register
+        .write(Register::RA1) // A
+        .write(false) // Register
+        .write(Register::RA2) // B
+        .finish(); // DST = A + B
+    memory[3004] = InstructionWriter::new(OpCode::Add)
+        .write(Register::RA4)
+        .write(false)
+        .write(Register::RA1)
+        .write(true)
+        .write(12u8)
         .finish();
 
     let mut machine = Machine::new(memory);

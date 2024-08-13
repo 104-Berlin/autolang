@@ -132,65 +132,75 @@ impl Display for RegisterStore {
         use prettytable::{Cell, Row, Table};
 
         let mut table = Table::new();
-        table.add_row(row!["Register", "Hex", "Dec", "Bin"]);
+        table.add_row(row!["Register", "Signed", "Unsigned", "Hex", "Bin"]);
         table.add_row(Row::new(vec![
             Cell::new("RA1"),
-            Cell::new(&format!("{:#X}", self.ra1)),
+            Cell::new(&format!("{}", self.ra1 as i32)),
             Cell::new(&format!("{}", self.ra1)),
+            Cell::new(&format!("{:#X}", self.ra1)),
             Cell::new(&format!("{:b}", self.ra1)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("RA2"),
-            Cell::new(&format!("{:#X}", self.ra2)),
+            Cell::new(&format!("{}", self.ra2 as i32)),
             Cell::new(&format!("{}", self.ra2)),
+            Cell::new(&format!("{:#X}", self.ra2)),
             Cell::new(&format!("{:b}", self.ra2)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("RA3"),
-            Cell::new(&format!("{:#X}", self.ra3)),
+            Cell::new(&format!("{}", self.ra3 as i32)),
             Cell::new(&format!("{}", self.ra3)),
+            Cell::new(&format!("{:#X}", self.ra3)),
             Cell::new(&format!("{:b}", self.ra3)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("RA4"),
-            Cell::new(&format!("{:#X}", self.ra4)),
+            Cell::new(&format!("{}", self.ra4 as i32)),
             Cell::new(&format!("{}", self.ra4)),
+            Cell::new(&format!("{:#X}", self.ra4)),
             Cell::new(&format!("{:b}", self.ra4)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("RA5"),
-            Cell::new(&format!("{:#X}", self.ra5)),
+            Cell::new(&format!("{}", self.ra5 as i32)),
             Cell::new(&format!("{}", self.ra5)),
+            Cell::new(&format!("{:#X}", self.ra5)),
             Cell::new(&format!("{:b}", self.ra5)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("RA6"),
-            Cell::new(&format!("{:#X}", self.ra6)),
+            Cell::new(&format!("{}", self.ra6 as i32)),
             Cell::new(&format!("{}", self.ra6)),
+            Cell::new(&format!("{:#X}", self.ra6)),
             Cell::new(&format!("{:b}", self.ra6)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("RS1"),
-            Cell::new(&format!("{:#X}", self.rs1)),
+            Cell::new(&format!("{}", self.rs1 as i32)),
             Cell::new(&format!("{}", self.rs1)),
+            Cell::new(&format!("{:#X}", self.rs1)),
             Cell::new(&format!("{:b}", self.rs1)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("RS2"),
-            Cell::new(&format!("{:#X}", self.rs2)),
+            Cell::new(&format!("{}", self.rs2 as i32)),
             Cell::new(&format!("{}", self.rs2)),
+            Cell::new(&format!("{:#X}", self.rs2)),
             Cell::new(&format!("{:b}", self.rs2)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("IP"),
-            Cell::new(&format!("{:#X}", self.ip)),
+            Cell::new(&format!("{}", self.ip as i32)),
             Cell::new(&format!("{}", self.ip)),
+            Cell::new(&format!("{:#X}", self.ip)),
             Cell::new(&format!("{:b}", self.ip)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Cond"),
-            Cell::new(&format!("{:#X}", self.cond)),
+            Cell::new(&format!("{}", self.cond as i32)),
             Cell::new(&format!("{}", self.cond)),
+            Cell::new(&format!("{:#X}", self.cond)),
             Cell::new(&format!("{:b}", self.cond)),
         ]));
 

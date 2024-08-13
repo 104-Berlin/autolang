@@ -11,6 +11,7 @@ pub enum OpCode {
     Nop,  // Do nothing
     Load, // Load a value into a register
     Imm,  // Load an immediate value into a register
+    Add,  // Add two numbers
 }
 
 impl InstructionPart for OpCode {
@@ -28,6 +29,7 @@ impl InstructionPart for OpCode {
             0x1 => Ok(OpCode::Nop),
             0x2 => Ok(OpCode::Load),
             0x3 => Ok(OpCode::Imm),
+            0x4 => Ok(OpCode::Add),
             _ => Err(VMError::InvalidOpCode(value)),
         }
     }

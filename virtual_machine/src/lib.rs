@@ -80,6 +80,7 @@ impl Machine {
             OpCode::Nop => Ok(()),
             OpCode::Load => instruction::load(&mut reader, self),
             OpCode::Imm => instruction::imm(&mut reader, self),
+            OpCode::Add => instruction::add(&mut reader, self),
         }
     }
 

@@ -100,6 +100,29 @@ impl InstructionPart for Arg20 {
     }
 }
 
+impl InstructionPart for bool {
+    const BIT_SIZE: u32 = 1;
+
+    fn match_to_bytes(data: Self) -> u32 {
+        data as u32
+    }
+
+    fn match_from_bytes(data: u32) -> VMResult<Self> {
+        Ok(data & 0x1 != 0)
+    }
+}
+
+impl InstructionPart for u8 {
+    const BIT_SIZE: u32 = 8;
+
+    fn match_to_bytes(data: Self) -> u32 {
+        data as u32
+    }
+
+    fn match_from_bytes(data: u32) -> VMResult<Self> {
+        Ok(data as u8)
+    }
+}
 /// ```text
 /// 31            26 25       20 19                                0
 /// ┌───────────────┬───────────┬───────────────────────────────────┐
@@ -127,10 +150,52 @@ pub fn load(reader: &mut InstructionReader, vm: &mut Machine) -> VMResult<()> {
 /// ```
 pub fn imm(reader: &mut InstructionReader, vm: &mut Machine) -> VMResult<()> {
     let register = reader.read::<Register>()?;
-    let value = reader.read::<Arg20>()?;
+    let value = sign_extend(reader.read::<Arg20>()?.0, 20);
 
-    vm.registers_mut().set(register, value.0);
+    vm.registers_mut().set(register, value);
     vm.registers_mut().update_condition(register);
+
+    Ok(())
+}
+
+/// ```text
+/// 31            26 25       20 19             10 9              0
+/// ┌───────────────┬───────────┬─────────────────┬────────────────┐
+/// │   0b00000004  │   DREG    │     VALUE1      |     VALUE2     │
+/// └───────────────┴───────────┴─────────────────┴────────────────┘
+/// ```
+///
+///
+/// ```text
+///    9   8          6 5          0
+/// ┌─────┬────────────┬────────────┐
+/// │  0  |   UNUSED   |    REGA    │
+/// └─────┴────────────┴────────────┘
+/// ```
+///
+/// ```text
+///    9         8      7          0
+/// ┌─────┬────────────┬────────────┐
+/// │  0  |   UNUSED   |  LITERAL8  │
+/// └─────┴────────────┴────────────┘
+/// ```
+pub fn add(reader: &mut InstructionReader, vm: &mut Machine) -> VMResult<()> {
+    let reg: Register = reader.read()?;
+
+    let read_value = |reader: &mut InstructionReader| {
+        let is_literal: bool = reader.read()?;
+
+        Ok::<_, VMError>(if is_literal {
+            sign_extend(reader.read::<u8>()? as u32, 8)
+        } else {
+            vm.registers().get(reader.read::<Register>()?)
+        })
+    };
+
+    let value1 = read_value(reader)?;
+    let value2 = read_value(reader)?;
+
+    vm.registers_mut().set(reg, value1.wrapping_add(value2));
 
     Ok(())
 }
