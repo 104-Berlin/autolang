@@ -206,7 +206,7 @@ pub enum Instruction {
 }
 
 impl InstructionPart for Instruction {
-    const BIT_SIZE: u32 = 26;
+    const BIT_SIZE: u32 = 32;
 
     fn match_from_bytes(data: u32) -> VMResult<Self>
     where
@@ -221,10 +221,7 @@ impl InstructionPart for Instruction {
             OpCode::Nop => Ok(Self::Nop),
             OpCode::Load => Ok(Self::Load(reader.read()?, reader.read()?)),
             OpCode::Imm => Ok(Self::Imm(reader.read()?, reader.read()?)),
-            OpCode::Add => {
-                println!("Reading Add {:032b}", data);
-                Ok(Self::Add(reader.read()?, reader.read()?, reader.read()?))
-            }
+            OpCode::Add => Ok(Self::Add(reader.read()?, reader.read()?, reader.read()?)),
         }
     }
 

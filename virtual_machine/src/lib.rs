@@ -32,9 +32,9 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(memory: impl Memory + 'static) -> Machine {
+    pub fn new(memory: Box<dyn Memory>) -> Machine {
         let mut res = Self {
-            memory: Box::new(memory),
+            memory,
             registers: RegisterStore::default(),
             halt: false,
         };
@@ -47,11 +47,11 @@ impl Machine {
         self.registers.set(Register::IP, 3000);
     }
 
-    pub fn run(&mut self) -> VMResult<()> {
+    pub fn run(mut self) -> VMResult<Self> {
         while !self.halt {
             self.step()?;
         }
-        Ok(())
+        Ok(self)
     }
 
     fn step(&mut self) -> VMResult<()> {
@@ -70,9 +70,7 @@ impl Machine {
     }
 
     fn run_instruction(&mut self, instruction: &u32) -> VMResult<()> {
-        println!("Running instruction: {:032b}", instruction);
         let instr = Instruction::match_from_bytes(*instruction)?;
-
         println!("Running instruction {:?}", instr);
 
         match instr {
@@ -96,9 +94,8 @@ impl Machine {
 
     fn load(&mut self, dst: Register, offset: Arg20) -> VMResult<()> {
         let ip = self.registers.get(Register::IP);
-        let addr = self
-            .memory
-            .read((ip as u64 + sign_extend(offset.0, 20) as u64) as u32)?;
+        let addr = (ip as u64 + sign_extend(offset.0, 20) as u64) as u32;
+        let addr = self.memory.read(addr)?;
         self.registers.set(dst, addr);
         self.registers.update_condition(dst);
         Ok(())
