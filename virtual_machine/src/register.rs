@@ -27,10 +27,9 @@ pub enum Register {
 }
 
 impl InstructionPart for Register {
-    type Output = Self;
     const BIT_SIZE: u32 = 6; // We need to change representation if we grow past 8 bits (Should not happen)
 
-    fn match_to_bytes(data: Self::Output) -> u32 {
+    fn match_to_bytes(data: Self) -> u32 {
         data as u32
     }
 
@@ -117,10 +116,10 @@ impl RegisterStore {
         };
     }
 
-    pub fn update_condition(&mut self, value: Register) {
-        if self.get(value) == 0 {
+    pub fn update_condition(&mut self, register: Register) {
+        if self.get(register) == 0 {
             self.cond = ConditionFlag::Zero as u32;
-        } else if self.get(value) & 0x8000_0000 != 0 {
+        } else if self.get(register) & 0x8000_0000 != 0 {
             self.cond = ConditionFlag::Negative as u32;
         } else {
             self.cond = ConditionFlag::Positive as u32;

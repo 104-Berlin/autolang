@@ -3,7 +3,7 @@ use virtual_machine::{
     instruction::{Arg20, InstructionWriter},
     opcode::OpCode,
     register::Register,
-    Machine,
+    sign_extend, Machine,
 };
 
 fn main() -> VMResult<()> {
@@ -16,13 +16,19 @@ fn main() -> VMResult<()> {
     memory[2999] = 32;
     memory[3000] = InstructionWriter::new(OpCode::Nop).finish();
     memory[3001] = InstructionWriter::new(OpCode::Load)
-        .write::<Register>(Register::RA1)
-        .write::<Arg20>(0xfffffffd)
+        .write(Register::RA1)
+        .write(Arg20(sign_extend((-3i8 as u8) as u32, 8)))
+        .finish();
+    memory[3002] = InstructionWriter::new(OpCode::Imm)
+        .write(Register::RA2)
+        .write(Arg20(-3i16 as u32))
         .finish();
 
     let mut machine = Machine::new(memory);
 
     machine.run()?;
+
+    println!("{}", machine.registers());
 
     Ok(())
 }

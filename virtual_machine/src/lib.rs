@@ -79,6 +79,7 @@ impl Machine {
             }
             OpCode::Nop => Ok(()),
             OpCode::Load => instruction::load(&mut reader, self),
+            OpCode::Imm => instruction::imm(&mut reader, self),
         }
     }
 
@@ -91,7 +92,7 @@ impl Machine {
     }
 }
 
-pub(crate) fn sign_extend(value: u32, from: u32) -> u32 {
+pub fn sign_extend(value: u32, from: u32) -> u32 {
     if (value >> (from - 1)) & 1 != 0 {
         value | (0xffffffff << from)
     } else {

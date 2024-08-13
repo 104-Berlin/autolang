@@ -5,17 +5,18 @@ use crate::{
 
 /// # 6 Bit
 #[derive(Debug)]
+#[repr(u8)]
 pub enum OpCode {
-    Halt,
-    Nop,
-    Load,
+    Halt, // Stop the program
+    Nop,  // Do nothing
+    Load, // Load a value into a register
+    Imm,  // Load an immediate value into a register
 }
 
 impl InstructionPart for OpCode {
-    type Output = Self;
     const BIT_SIZE: u32 = 6;
 
-    fn match_to_bytes(data: Self::Output) -> u32 {
+    fn match_to_bytes(data: Self) -> u32 {
         data as u32
     }
 
@@ -26,6 +27,7 @@ impl InstructionPart for OpCode {
             0x0 => Ok(OpCode::Halt),
             0x1 => Ok(OpCode::Nop),
             0x2 => Ok(OpCode::Load),
+            0x3 => Ok(OpCode::Imm),
             _ => Err(VMError::InvalidOpCode(value)),
         }
     }
