@@ -14,15 +14,15 @@
 //! └───────────────┴───────────┴───────────────────────────────────┘
 
 use error::VMResult;
-use instruction::InstructionReader;
+use instruction::{Arg20, Instruction, InstructionPart, RegisterOrLiteral};
 use memory::Memory;
-use opcode::OpCode;
 use register::{Register, RegisterStore};
 
 pub mod error;
 pub mod instruction;
 pub mod memory;
 pub mod opcode;
+pub mod program_builder;
 pub mod register;
 pub struct Machine {
     memory: Box<dyn Memory>,
@@ -70,18 +70,20 @@ impl Machine {
     }
 
     fn run_instruction(&mut self, instruction: &u32) -> VMResult<()> {
-        let mut reader = InstructionReader::new(*instruction);
-        let op_code = reader.read::<OpCode>()?;
-        match op_code {
-            OpCode::Halt => {
-                self.halt = true;
-                Ok(())
-            }
-            OpCode::Nop => Ok(()),
-            OpCode::Load => instruction::load(&mut reader, self),
-            OpCode::Imm => instruction::imm(&mut reader, self),
-            OpCode::Add => instruction::add(&mut reader, self),
+        println!("Running instruction: {:032b}", instruction);
+        let instr = Instruction::match_from_bytes(*instruction)?;
+
+        println!("Running instruction {:?}", instr);
+
+        match instr {
+            Instruction::Halt => self.halt = true,
+            Instruction::Nop => (),
+            Instruction::Load(dst, offset) => self.load(dst, offset)?,
+            Instruction::Imm(dst, val) => self.imm(dst, val),
+            Instruction::Add(dst, a1, a2) => self.add(dst, a1, a2),
         }
+
+        Ok(())
     }
 
     pub fn registers(&self) -> &RegisterStore {
@@ -90,6 +92,27 @@ impl Machine {
 
     pub fn registers_mut(&mut self) -> &mut RegisterStore {
         &mut self.registers
+    }
+
+    fn load(&mut self, dst: Register, offset: Arg20) -> VMResult<()> {
+        let ip = self.registers.get(Register::IP);
+        let addr = self
+            .memory
+            .read((ip as u64 + sign_extend(offset.0, 20) as u64) as u32)?;
+        self.registers.set(dst, addr);
+        self.registers.update_condition(dst);
+        Ok(())
+    }
+
+    fn imm(&mut self, dst: Register, value: Arg20) {
+        self.registers.set(dst, sign_extend(value.0, 20));
+        self.registers.update_condition(dst);
+    }
+
+    fn add(&mut self, dst: Register, a: RegisterOrLiteral, b: RegisterOrLiteral) {
+        self.registers
+            .set(dst, a.get_val(self).wrapping_add(b.get_val(self)));
+        self.registers.update_condition(dst);
     }
 }
 

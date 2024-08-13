@@ -1,9 +1,9 @@
 use virtual_machine::{
     error::VMResult,
-    instruction::{Arg20, InstructionWriter},
-    opcode::OpCode,
+    instruction::{Arg20, Instruction, RegisterOrLiteral},
+    program_builder::ProgramBuilder,
     register::Register,
-    sign_extend, Machine,
+    Machine,
 };
 
 fn main() -> VMResult<()> {
@@ -14,29 +14,20 @@ fn main() -> VMResult<()> {
 
     let mut memory = vec![0u32; SIZE_IN_4_BYTES];
     memory[2999] = 32;
-    memory[3000] = InstructionWriter::new(OpCode::Nop).finish();
-    memory[3001] = InstructionWriter::new(OpCode::Load)
-        .write(Register::RA1)
-        .write(Arg20(sign_extend((-3i8 as u8) as u32, 8)))
-        .finish();
-    memory[3002] = InstructionWriter::new(OpCode::Imm)
-        .write(Register::RA2)
-        .write(Arg20(-3i8 as u32))
-        .finish();
-    memory[3003] = InstructionWriter::new(OpCode::Add)
-        .write(Register::RA3) // DST
-        .write(false) // Register
-        .write(Register::RA1) // A
-        .write(false) // Register
-        .write(Register::RA2) // B
-        .finish(); // DST = A + B
-    memory[3004] = InstructionWriter::new(OpCode::Add)
-        .write(Register::RA4)
-        .write(false)
-        .write(Register::RA1)
-        .write(true)
-        .write(12u8)
-        .finish();
+    ProgramBuilder::new(&mut memory)
+        .add_instruction(Instruction::Nop)?
+        .add_instruction(Instruction::Load(Register::RA1, Arg20(-3i32 as u32)))?
+        .add_instruction(Instruction::Imm(Register::RA2, Arg20(-3i32 as u32)))?
+        .add_instruction(Instruction::Add(
+            Register::RA3,
+            Register::RA1.into(),
+            Register::RA2.into(),
+        ))?
+        .add_instruction(Instruction::Add(
+            Register::RA4,
+            Register::RA1.into(),
+            RegisterOrLiteral::Literal(12),
+        ))?;
 
     let mut machine = Machine::new(memory);
 

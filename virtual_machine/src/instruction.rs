@@ -86,7 +86,56 @@ impl InstructionWriter {
     }
 }
 
+#[derive(Debug)]
 pub struct Arg20(pub u32);
+
+/// ```text
+///    9   8          6 5          0
+/// ┌─────┬────────────┬────────────┐
+/// │  0  |   UNUSED   |    REGA    │
+/// └─────┴────────────┴────────────┘
+/// ```
+///
+/// ```text
+///    9         8      7          0
+/// ┌─────┬────────────┬────────────┐
+/// │  1  |   UNUSED   |  LITERAL8  │
+/// └─────┴────────────┴────────────┘
+/// ```
+#[derive(Debug)]
+pub enum RegisterOrLiteral {
+    Register(Register),
+    Literal(u8),
+}
+
+pub struct Unused<const T: u32>;
+
+impl<const T: u32> InstructionPart for Unused<T> {
+    const BIT_SIZE: u32 = T;
+
+    fn match_from_bytes(_: u32) -> VMResult<Self> {
+        Ok(Self)
+    }
+
+    fn match_to_bytes(_: Self) -> u32 {
+        0
+    }
+}
+
+impl RegisterOrLiteral {
+    pub fn get_val(&self, machine: &Machine) -> u32 {
+        match self {
+            Self::Register(register) => machine.registers().get(*register),
+            Self::Literal(literal) => sign_extend(*literal as u32, 8),
+        }
+    }
+}
+
+impl From<Register> for RegisterOrLiteral {
+    fn from(register: Register) -> Self {
+        Self::Register(register)
+    }
+}
 
 impl InstructionPart for Arg20 {
     const BIT_SIZE: u32 = 20;
@@ -97,6 +146,29 @@ impl InstructionPart for Arg20 {
 
     fn match_from_bytes(data: u32) -> VMResult<Self> {
         Ok(Self(data & 0xF_FFFF))
+    }
+}
+
+impl InstructionPart for RegisterOrLiteral {
+    const BIT_SIZE: u32 = 10;
+
+    fn match_from_bytes(data: u32) -> VMResult<Self>
+    where
+        Self: Sized,
+    {
+        let is_literal = (data >> 9) & 0x1 != 0;
+        if is_literal {
+            Ok(Self::Literal((data & 0xFF) as u8))
+        } else {
+            Ok(Self::Register(Register::match_from_bytes(data)?))
+        }
+    }
+
+    fn match_to_bytes(data: Self) -> u32 {
+        match data {
+            Self::Register(register) => register as u32,
+            Self::Literal(literal) => 0x200 | (literal as u32),
+        }
     }
 }
 
@@ -123,79 +195,62 @@ impl InstructionPart for u8 {
         Ok(data as u8)
     }
 }
-/// ```text
-/// 31            26 25       20 19                                0
-/// ┌───────────────┬───────────┬───────────────────────────────────┐
-/// │   0b00000002  │    REG    │            PCOFFSET20             │
-/// └───────────────┴───────────┴───────────────────────────────────┘
-/// ```
-pub fn load(reader: &mut InstructionReader, vm: &mut Machine) -> VMResult<()> {
-    let register = reader.read::<Register>()?;
-    let value = sign_extend(reader.read::<Arg20>()?.0, 20);
 
-    let ip = vm.registers().get(Register::IP);
-    let addr = vm.memory.read((ip as u64 + value as u64) as u32)?;
-
-    vm.registers_mut().set(register, addr);
-    vm.registers_mut().update_condition(register);
-
-    Ok(())
+#[derive(Debug)]
+pub enum Instruction {
+    Halt,
+    Nop,
+    Load(Register, Arg20),
+    Imm(Register, Arg20),
+    Add(Register, RegisterOrLiteral, RegisterOrLiteral),
 }
 
-/// ```text
-/// 31            26 25       20 19                                0
-/// ┌───────────────┬───────────┬───────────────────────────────────┐
-/// │   0b00000003  │    REG    │             LITERAL20             │
-/// └───────────────┴───────────┴───────────────────────────────────┘
-/// ```
-pub fn imm(reader: &mut InstructionReader, vm: &mut Machine) -> VMResult<()> {
-    let register = reader.read::<Register>()?;
-    let value = sign_extend(reader.read::<Arg20>()?.0, 20);
+impl InstructionPart for Instruction {
+    const BIT_SIZE: u32 = 26;
 
-    vm.registers_mut().set(register, value);
-    vm.registers_mut().update_condition(register);
+    fn match_from_bytes(data: u32) -> VMResult<Self>
+    where
+        Self: Sized,
+    {
+        let mut reader = InstructionReader::new(data);
 
-    Ok(())
-}
+        let op_code: OpCode = reader.read()?;
 
-/// ```text
-/// 31            26 25       20 19             10 9              0
-/// ┌───────────────┬───────────┬─────────────────┬────────────────┐
-/// │   0b00000004  │   DREG    │     VALUE1      |     VALUE2     │
-/// └───────────────┴───────────┴─────────────────┴────────────────┘
-/// ```
-///
-///
-/// ```text
-///    9   8          6 5          0
-/// ┌─────┬────────────┬────────────┐
-/// │  0  |   UNUSED   |    REGA    │
-/// └─────┴────────────┴────────────┘
-/// ```
-///
-/// ```text
-///    9         8      7          0
-/// ┌─────┬────────────┬────────────┐
-/// │  0  |   UNUSED   |  LITERAL8  │
-/// └─────┴────────────┴────────────┘
-/// ```
-pub fn add(reader: &mut InstructionReader, vm: &mut Machine) -> VMResult<()> {
-    let reg: Register = reader.read()?;
+        match op_code {
+            OpCode::Halt => Ok(Self::Halt),
+            OpCode::Nop => Ok(Self::Nop),
+            OpCode::Load => Ok(Self::Load(reader.read()?, reader.read()?)),
+            OpCode::Imm => Ok(Self::Imm(reader.read()?, reader.read()?)),
+            OpCode::Add => {
+                println!("Reading Add {:032b}", data);
+                Ok(Self::Add(reader.read()?, reader.read()?, reader.read()?))
+            }
+        }
+    }
 
-    let read_value = |reader: &mut InstructionReader| {
-        let is_literal: bool = reader.read()?;
+    fn match_to_bytes(data: Self) -> u32 {
+        let mut writer = InstructionWriter::new(match data {
+            Self::Halt => OpCode::Halt,
+            Self::Nop => OpCode::Nop,
+            Self::Load(_, _) => OpCode::Load,
+            Self::Imm(_, _) => OpCode::Imm,
+            Self::Add(_, _, _) => OpCode::Add,
+        });
 
-        Ok::<_, VMError>(if is_literal {
-            sign_extend(reader.read::<u8>()? as u32, 8)
-        } else {
-            vm.registers().get(reader.read::<Register>()?)
-        })
-    };
+        match data {
+            Self::Halt => (),
+            Self::Nop => (),
+            Self::Load(dst, offset) => {
+                writer = writer.write(dst).write(offset);
+            }
+            Self::Imm(dst, val) => {
+                writer = writer.write(dst).write(val);
+            }
+            Self::Add(dst, a1, a2) => {
+                writer = writer.write(dst).write(a1).write(a2);
+            }
+        }
 
-    let value1 = read_value(reader)?;
-    let value2 = read_value(reader)?;
-
-    vm.registers_mut().set(reg, value1.wrapping_add(value2));
-
-    Ok(())
+        writer.finish()
+    }
 }
