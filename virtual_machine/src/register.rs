@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use prettytable::row;
 
 use crate::{
@@ -96,7 +97,7 @@ pub struct RegisterStore {
     cond: u32,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum ConditionFlag {
     Zero,
@@ -136,12 +137,13 @@ impl RegisterStore {
     }
 
     pub fn update_condition(&mut self, register: Register) {
-        if self.get(register) == 0 {
-            self.cond = ConditionFlag::Zero as u32;
-        } else if self.get(register) & 0x8000_0000 != 0 {
-            self.cond = ConditionFlag::Negative as u32;
+        let val = self.get(register);
+        if val == 0 {
+            self.cond = Into::<u8>::into(ConditionFlag::Zero) as u32;
+        } else if val & 0x8000_0000 != 0 {
+            self.cond = Into::<u8>::into(ConditionFlag::Negative) as u32;
         } else {
-            self.cond = ConditionFlag::Positive as u32;
+            self.cond = Into::<u8>::into(ConditionFlag::Positive) as u32;
         }
     }
 }

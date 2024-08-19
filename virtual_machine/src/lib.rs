@@ -15,11 +15,14 @@
 
 use error::VMResult;
 use instruction::{
-    args::{arg20::Arg20, register_or_literal::RegisterOrLiteral, InstructionArg},
+    args::{
+        arg20::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral,
+        InstructionArg,
+    },
     Instruction,
 };
 use memory::Memory;
-use register::{Register, RegisterStore};
+use register::{ConditionFlag, Register, RegisterStore};
 
 pub mod error;
 pub mod instruction;
@@ -49,12 +52,14 @@ impl Machine {
         self.registers.set(Register::IP, 3000);
     }
 
-    pub fn run(mut self) -> VMResult<Self> {
+    pub fn run(mut self, step_mode: bool) -> VMResult<Self> {
         while !self.halt {
             self.step()?;
-            println!("{}", self.registers);
-            println!("Press enter to continue...");
-            std::io::stdin().read_line(&mut String::new()).unwrap();
+            if step_mode {
+                println!("{}", self.registers);
+                println!("Press enter to continue...");
+                std::io::stdin().read_line(&mut String::new()).unwrap();
+            }
         }
         Ok(self)
     }
@@ -84,12 +89,29 @@ impl Machine {
             Instruction::Load(dst, offset) => self.load(dst, offset)?,
             Instruction::Imm(dst, val) => self.imm(dst, val),
             Instruction::Add(dst, a1, a2) => self.add(dst, a1, a2),
-            Instruction::Jump(offset) => {
-                let ip = self.registers.get(Register::IP);
-                self.registers.set(
-                    Register::IP,
-                    (ip as i32 + sign_extend(offset.0, 20) as i32) as u32,
-                );
+            Instruction::Jump(cond, offset) => {
+                let cond_flags = self.registers.get(Register::Cond) as u8;
+                let cond_flags: ConditionFlag = cond_flags
+                    .try_into()
+                    .expect("There is a wrong value in the condition register!");
+
+                let can_jump = match (cond, cond_flags) {
+                    (JumpCondition::Always, _) => true,
+                    (JumpCondition::Zero, ConditionFlag::Zero) => true,
+                    (JumpCondition::Positive, ConditionFlag::Positive) => true,
+                    (JumpCondition::Negative, ConditionFlag::Negative) => true,
+                    (JumpCondition::NotZero, ConditionFlag::Positive)
+                    | (JumpCondition::NotZero, ConditionFlag::Negative) => true,
+                    _ => false,
+                };
+
+                if can_jump {
+                    let ip = self.registers.get(Register::IP);
+                    self.registers.set(
+                        Register::IP,
+                        (ip as i32 + sign_extend(offset.0, 20) as i32) as u32,
+                    );
+                }
             }
             Instruction::Compare(lhs, rhs) => {
                 let lhs = self.registers.get(lhs);

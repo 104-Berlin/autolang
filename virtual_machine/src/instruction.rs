@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use args::{arg20::Arg20, register_or_literal::RegisterOrLiteral, unused::Unused, InstructionArg};
+use args::{
+    arg20::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral, InstructionArg,
+};
 use reader::InstructionReader;
 use writer::InstructionWriter;
 
@@ -20,7 +22,7 @@ pub enum Instruction {
     Imm(Register, Arg20),
     Add(Register, RegisterOrLiteral, RegisterOrLiteral),
     Compare(Register, RegisterOrLiteral),
-    Jump(Arg20),
+    Jump(JumpCondition, Arg20),
 }
 
 impl InstructionArg for Instruction {
@@ -40,10 +42,7 @@ impl InstructionArg for Instruction {
             OpCode::Load => Ok(Self::Load(reader.read()?, reader.read()?)),
             OpCode::Imm => Ok(Self::Imm(reader.read()?, reader.read()?)),
             OpCode::Add => Ok(Self::Add(reader.read()?, reader.read()?, reader.read()?)),
-            OpCode::Jump => {
-                reader.read::<Unused<{ Register::BIT_SIZE }>>()?;
-                Ok(Self::Jump(reader.read()?))
-            }
+            OpCode::Jump => Ok(Self::Jump(reader.read()?, reader.read()?)),
             OpCode::Compare => Ok(Self::Compare(reader.read()?, reader.read()?)),
         }
     }
@@ -55,7 +54,7 @@ impl InstructionArg for Instruction {
             Self::Load(_, _) => OpCode::Load,
             Self::Imm(_, _) => OpCode::Imm,
             Self::Add(_, _, _) => OpCode::Add,
-            Self::Jump(_) => OpCode::Jump,
+            Self::Jump(_, _) => OpCode::Jump,
             Self::Compare(_, _) => OpCode::Compare,
         });
 
@@ -71,10 +70,10 @@ impl InstructionArg for Instruction {
             Self::Add(dst, a1, a2) => {
                 writer = writer.write(dst).write(a1).write(a2);
             }
-            Self::Jump(offset) => {
+            Self::Jump(cond, offset) => {
                 // We have some unused bits here
                 // We need to write them, in order to skip to the correct bit for the offset
-                writer = writer.write(Unused::<{ Register::BIT_SIZE }>).write(offset);
+                writer = writer.write(cond).write(offset);
             }
             Self::Compare(lhs, rhs) => {
                 writer = writer.write(lhs).write(rhs);
@@ -93,7 +92,7 @@ impl Display for Instruction {
             Self::Load(dst, offset) => write!(f, "Load {}, {}", dst, offset.0),
             Self::Imm(dst, val) => write!(f, "Imm {}, {}", dst, val.0),
             Self::Add(dst, a1, a2) => write!(f, "Add {}, {}, {}", dst, a1, a2),
-            Self::Jump(offset) => write!(f, "Jump {}", offset.0 as i32),
+            Self::Jump(cond, offset) => write!(f, "Jump {:?} {}", cond, offset.0 as i32),
             Self::Compare(lhs, rhs) => write!(f, "Compare {}, {}", lhs, rhs),
         }
     }
