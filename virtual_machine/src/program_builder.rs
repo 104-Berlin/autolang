@@ -1,6 +1,6 @@
 use crate::{
     error::VMResult,
-    instruction::{Instruction, InstructionPart},
+    instruction::{args::InstructionArg, Instruction},
     memory::Memory,
     Machine,
 };

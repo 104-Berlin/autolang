@@ -4,7 +4,7 @@ use prettytable::row;
 
 use crate::{
     error::{VMError, VMResult},
-    instruction::InstructionPart,
+    instruction::args::InstructionArg,
 };
 
 /// # 6 Bit
@@ -26,7 +26,7 @@ pub enum Register {
     Cond,
 }
 
-impl InstructionPart for Register {
+impl InstructionArg for Register {
     const BIT_SIZE: u32 = 6; // We need to change representation if we grow past 8 bits (Should not happen)
 
     fn match_to_bytes(data: Self) -> u32 {
@@ -53,6 +53,25 @@ impl InstructionPart for Register {
     }
 }
 
+impl Display for Register {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let register = match self {
+            Register::RA1 => "RA1",
+            Register::RA2 => "RA2",
+            Register::RA3 => "RA3",
+            Register::RA4 => "RA4",
+            Register::RA5 => "RA5",
+            Register::RA6 => "RA6",
+            Register::RS1 => "RS1",
+            Register::RS2 => "RS2",
+            Register::IP => "IP",
+            Register::Cond => "Cond",
+        };
+
+        write!(f, "{}", register)
+    }
+}
+
 /// RegisterStore is a struct that holds the values of all the registers.
 /// All registers are 64-bit wide.
 #[derive(Default)]
@@ -73,7 +92,7 @@ pub struct RegisterStore {
 
     // Condition register
     // State of last operation
-    // ZERO, NEGATIVE, POSITIVE
+    // ZERO, POSITIVE, NEGATIVE
     cond: u32,
 }
 
@@ -81,8 +100,8 @@ pub struct RegisterStore {
 #[repr(u8)]
 pub enum ConditionFlag {
     Zero,
-    Negative,
     Positive,
+    Negative,
 }
 
 impl RegisterStore {

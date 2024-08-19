@@ -14,14 +14,16 @@
 //! └───────────────┴───────────┴───────────────────────────────────┘
 
 use error::VMResult;
-use instruction::{Arg20, Instruction, InstructionPart, RegisterOrLiteral};
+use instruction::{
+    args::{arg20::Arg20, register_or_literal::RegisterOrLiteral, InstructionArg},
+    Instruction,
+};
 use memory::Memory;
 use register::{Register, RegisterStore};
 
 pub mod error;
 pub mod instruction;
 pub mod memory;
-pub mod opcode;
 pub mod program_builder;
 pub mod register;
 pub struct Machine {
@@ -50,6 +52,9 @@ impl Machine {
     pub fn run(mut self) -> VMResult<Self> {
         while !self.halt {
             self.step()?;
+            println!("{}", self.registers);
+            println!("Press enter to continue...");
+            std::io::stdin().read_line(&mut String::new()).unwrap();
         }
         Ok(self)
     }
@@ -71,7 +76,7 @@ impl Machine {
 
     fn run_instruction(&mut self, instruction: &u32) -> VMResult<()> {
         let instr = Instruction::match_from_bytes(*instruction)?;
-        println!("Running instruction {:?}", instr);
+        println!("Running instruction {}", instr);
 
         match instr {
             Instruction::Halt => self.halt = true,
@@ -79,6 +84,21 @@ impl Machine {
             Instruction::Load(dst, offset) => self.load(dst, offset)?,
             Instruction::Imm(dst, val) => self.imm(dst, val),
             Instruction::Add(dst, a1, a2) => self.add(dst, a1, a2),
+            Instruction::Jump(offset) => {
+                let ip = self.registers.get(Register::IP);
+                self.registers.set(
+                    Register::IP,
+                    (ip as i32 + sign_extend(offset.0, 20) as i32) as u32,
+                );
+            }
+            Instruction::Compare(lhs, rhs) => {
+                let lhs = self.registers.get(lhs);
+                let rhs = rhs.get_val(self);
+
+                // Store the result in RS1 to update the condition flags
+                self.registers.set(Register::RS1, lhs - rhs);
+                self.registers.update_condition(Register::RS1);
+            }
         }
 
         Ok(())

@@ -1,200 +1,16 @@
-use crate::{
-    error::{VMError, VMResult},
-    opcode::OpCode,
-    register::Register,
-    sign_extend, Machine,
-};
+use std::fmt::Display;
 
-pub trait InstructionPart {
-    const BIT_SIZE: u32;
+use args::{arg20::Arg20, register_or_literal::RegisterOrLiteral, unused::Unused, InstructionArg};
+use reader::InstructionReader;
+use writer::InstructionWriter;
 
-    /// Match the instruction from the bytes
-    /// The bit_offset is used to skip the bits that are not part of the instruction
-    /// We are cutting all the bits that are not part of the instruction and put the instruction in the first bits
-    fn match_from_bytes(data: u32) -> VMResult<Self>
-    where
-        Self: Sized;
+use crate::{error::VMResult, register::Register};
+use opcode::OpCode;
 
-    /// Match the instruction to the bytes
-    /// This is used to convert the instruction back to the bytes
-    /// The data should be on the most right side with BIT_SIZE bits
-    fn match_to_bytes(data: Self) -> u32;
-
-    fn from_instruction(instruction: u32, bit_offset: u32) -> VMResult<Self>
-    where
-        Self: Sized,
-    {
-        if bit_offset + Self::BIT_SIZE > 32 {
-            return Err(VMError::FailedParsingInstruction(instruction));
-        }
-        let offset = 32 - (Self::BIT_SIZE + bit_offset);
-        let code = (instruction >> offset) & ((1 << Self::BIT_SIZE) - 1);
-
-        Self::match_from_bytes(code)
-    }
-
-    fn into_instruction(instruction: &mut u32, bit_offset: u32, data: Self)
-    where
-        Self: Sized,
-    {
-        *instruction |= Self::match_to_bytes(data) << (32 - (Self::BIT_SIZE + bit_offset));
-    }
-}
-
-pub struct InstructionReader {
-    instruction: u32,
-    bit_offset: u32,
-}
-
-impl InstructionReader {
-    pub fn new(instruction: u32) -> Self {
-        Self {
-            instruction,
-            bit_offset: 0,
-        }
-    }
-
-    pub fn read<T: InstructionPart>(&mut self) -> VMResult<T> {
-        let result = T::from_instruction(self.instruction, self.bit_offset)?;
-        self.bit_offset += T::BIT_SIZE;
-        Ok(result)
-    }
-}
-
-pub struct InstructionWriter {
-    instruction: u32,
-    bit_offset: u32,
-}
-
-impl InstructionWriter {
-    pub fn new(op_code: OpCode) -> Self {
-        Self {
-            instruction: 0,
-            bit_offset: 0,
-        }
-        .write::<OpCode>(op_code)
-    }
-
-    pub fn write<T: InstructionPart>(mut self, data: T) -> Self {
-        T::into_instruction(&mut self.instruction, self.bit_offset, data);
-        self.bit_offset += T::BIT_SIZE;
-        self
-    }
-
-    pub fn finish(self) -> u32 {
-        self.instruction
-    }
-}
-
-#[derive(Debug)]
-pub struct Arg20(pub u32);
-
-/// ```text
-///    9   8          6 5          0
-/// ┌─────┬────────────┬────────────┐
-/// │  0  |   UNUSED   |    REGA    │
-/// └─────┴────────────┴────────────┘
-/// ```
-///
-/// ```text
-///    9         8      7          0
-/// ┌─────┬────────────┬────────────┐
-/// │  1  |   UNUSED   |  LITERAL8  │
-/// └─────┴────────────┴────────────┘
-/// ```
-#[derive(Debug)]
-pub enum RegisterOrLiteral {
-    Register(Register),
-    Literal(u8),
-}
-
-pub struct Unused<const T: u32>;
-
-impl<const T: u32> InstructionPart for Unused<T> {
-    const BIT_SIZE: u32 = T;
-
-    fn match_from_bytes(_: u32) -> VMResult<Self> {
-        Ok(Self)
-    }
-
-    fn match_to_bytes(_: Self) -> u32 {
-        0
-    }
-}
-
-impl RegisterOrLiteral {
-    pub fn get_val(&self, machine: &Machine) -> u32 {
-        match self {
-            Self::Register(register) => machine.registers().get(*register),
-            Self::Literal(literal) => sign_extend(*literal as u32, 8),
-        }
-    }
-}
-
-impl From<Register> for RegisterOrLiteral {
-    fn from(register: Register) -> Self {
-        Self::Register(register)
-    }
-}
-
-impl InstructionPart for Arg20 {
-    const BIT_SIZE: u32 = 20;
-
-    fn match_to_bytes(data: Self) -> u32 {
-        data.0 & 0xF_FFFF
-    }
-
-    fn match_from_bytes(data: u32) -> VMResult<Self> {
-        Ok(Self(data & 0xF_FFFF))
-    }
-}
-
-impl InstructionPart for RegisterOrLiteral {
-    const BIT_SIZE: u32 = 10;
-
-    fn match_from_bytes(data: u32) -> VMResult<Self>
-    where
-        Self: Sized,
-    {
-        let is_literal = (data >> 9) & 0x1 != 0;
-        if is_literal {
-            Ok(Self::Literal((data & 0xFF) as u8))
-        } else {
-            Ok(Self::Register(Register::match_from_bytes(data)?))
-        }
-    }
-
-    fn match_to_bytes(data: Self) -> u32 {
-        match data {
-            Self::Register(register) => register as u32,
-            Self::Literal(literal) => 0x200 | (literal as u32),
-        }
-    }
-}
-
-impl InstructionPart for bool {
-    const BIT_SIZE: u32 = 1;
-
-    fn match_to_bytes(data: Self) -> u32 {
-        data as u32
-    }
-
-    fn match_from_bytes(data: u32) -> VMResult<Self> {
-        Ok(data & 0x1 != 0)
-    }
-}
-
-impl InstructionPart for u8 {
-    const BIT_SIZE: u32 = 8;
-
-    fn match_to_bytes(data: Self) -> u32 {
-        data as u32
-    }
-
-    fn match_from_bytes(data: u32) -> VMResult<Self> {
-        Ok(data as u8)
-    }
-}
+pub mod args;
+pub mod opcode;
+pub mod reader;
+pub mod writer;
 
 #[derive(Debug)]
 pub enum Instruction {
@@ -203,9 +19,11 @@ pub enum Instruction {
     Load(Register, Arg20),
     Imm(Register, Arg20),
     Add(Register, RegisterOrLiteral, RegisterOrLiteral),
+    Compare(Register, RegisterOrLiteral),
+    Jump(Arg20),
 }
 
-impl InstructionPart for Instruction {
+impl InstructionArg for Instruction {
     const BIT_SIZE: u32 = 32;
 
     fn match_from_bytes(data: u32) -> VMResult<Self>
@@ -222,6 +40,11 @@ impl InstructionPart for Instruction {
             OpCode::Load => Ok(Self::Load(reader.read()?, reader.read()?)),
             OpCode::Imm => Ok(Self::Imm(reader.read()?, reader.read()?)),
             OpCode::Add => Ok(Self::Add(reader.read()?, reader.read()?, reader.read()?)),
+            OpCode::Jump => {
+                reader.read::<Unused<{ Register::BIT_SIZE }>>()?;
+                Ok(Self::Jump(reader.read()?))
+            }
+            OpCode::Compare => Ok(Self::Compare(reader.read()?, reader.read()?)),
         }
     }
 
@@ -232,6 +55,8 @@ impl InstructionPart for Instruction {
             Self::Load(_, _) => OpCode::Load,
             Self::Imm(_, _) => OpCode::Imm,
             Self::Add(_, _, _) => OpCode::Add,
+            Self::Jump(_) => OpCode::Jump,
+            Self::Compare(_, _) => OpCode::Compare,
         });
 
         match data {
@@ -246,8 +71,30 @@ impl InstructionPart for Instruction {
             Self::Add(dst, a1, a2) => {
                 writer = writer.write(dst).write(a1).write(a2);
             }
+            Self::Jump(offset) => {
+                // We have some unused bits here
+                // We need to write them, in order to skip to the correct bit for the offset
+                writer = writer.write(Unused::<{ Register::BIT_SIZE }>).write(offset);
+            }
+            Self::Compare(lhs, rhs) => {
+                writer = writer.write(lhs).write(rhs);
+            }
         }
 
         writer.finish()
+    }
+}
+
+impl Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Halt => write!(f, "Halt"),
+            Self::Nop => write!(f, "Nop"),
+            Self::Load(dst, offset) => write!(f, "Load {}, {}", dst, offset.0),
+            Self::Imm(dst, val) => write!(f, "Imm {}, {}", dst, val.0),
+            Self::Add(dst, a1, a2) => write!(f, "Add {}, {}, {}", dst, a1, a2),
+            Self::Jump(offset) => write!(f, "Jump {}", offset.0 as i32),
+            Self::Compare(lhs, rhs) => write!(f, "Compare {}, {}", lhs, rhs),
+        }
     }
 }
