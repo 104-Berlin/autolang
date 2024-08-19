@@ -95,15 +95,15 @@ impl Machine {
                     .try_into()
                     .expect("There is a wrong value in the condition register!");
 
-                let can_jump = match (cond, cond_flags) {
-                    (JumpCondition::Always, _) => true,
-                    (JumpCondition::Zero, ConditionFlag::Zero) => true,
-                    (JumpCondition::Positive, ConditionFlag::Positive) => true,
-                    (JumpCondition::Negative, ConditionFlag::Negative) => true,
-                    (JumpCondition::NotZero, ConditionFlag::Positive)
-                    | (JumpCondition::NotZero, ConditionFlag::Negative) => true,
-                    _ => false,
-                };
+                let can_jump = matches!(
+                    (cond, cond_flags),
+                    (JumpCondition::Always, _)
+                        | (JumpCondition::Zero, ConditionFlag::Zero)
+                        | (JumpCondition::Positive, ConditionFlag::Positive)
+                        | (JumpCondition::Negative, ConditionFlag::Negative)
+                        | (JumpCondition::NotZero, ConditionFlag::Positive)
+                        | (JumpCondition::NotZero, ConditionFlag::Negative)
+                );
 
                 if can_jump {
                     let ip = self.registers.get(Register::IP);

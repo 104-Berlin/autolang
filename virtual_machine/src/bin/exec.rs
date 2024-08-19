@@ -50,7 +50,7 @@ fn prog_test(builder: ProgramBuilder) -> VMResult<ProgramBuilder> {
 
 #[allow(dead_code)]
 fn prog_simple_loop(builder: ProgramBuilder) -> VMResult<ProgramBuilder> {
-    Ok(builder
+    builder
         // Load loop count into ra1
         .add_instruction(Instruction::Imm(Register::RA1, Arg20(5)))?
         .add_instruction(Instruction::Add(
@@ -65,5 +65,5 @@ fn prog_simple_loop(builder: ProgramBuilder) -> VMResult<ProgramBuilder> {
         .add_instruction(Instruction::Jump(
             JumpCondition::NotZero,
             Arg20(-3i32 as u32),
-        ))?)
+        ))
 }
