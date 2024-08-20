@@ -1,8 +1,8 @@
 use crate::{
     error::VMResult,
     instruction::{args::InstructionArg, Instruction},
+    machine::Machine,
     memory::Memory,
-    Machine,
 };
 
 pub struct ProgramBuilder {

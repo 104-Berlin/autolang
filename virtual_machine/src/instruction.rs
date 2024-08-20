@@ -18,11 +18,30 @@ pub mod writer;
 pub enum Instruction {
     Halt,
     Nop,
-    Load(Register, Arg20),
-    Imm(Register, Arg20),
-    Add(Register, RegisterOrLiteral, RegisterOrLiteral),
-    Compare(Register, RegisterOrLiteral),
-    Jump(JumpCondition, Arg20),
+    Load {
+        dst: Register,
+        addr: Arg20,
+    },
+    Imm {
+        dst: Register,
+        value: Arg20,
+    },
+    Add {
+        dst: Register,
+        lhs: RegisterOrLiteral,
+        rhs: RegisterOrLiteral,
+    },
+    Compare {
+        lhs: RegisterOrLiteral,
+        rhs: RegisterOrLiteral,
+    },
+    Jump {
+        cond: JumpCondition,
+        offset: Arg20,
+    },
+
+    Push(Register),
+    Pop(Register),
 }
 
 impl InstructionArg for Instruction {
@@ -39,11 +58,29 @@ impl InstructionArg for Instruction {
         match op_code {
             OpCode::Halt => Ok(Self::Halt),
             OpCode::Nop => Ok(Self::Nop),
-            OpCode::Load => Ok(Self::Load(reader.read()?, reader.read()?)),
-            OpCode::Imm => Ok(Self::Imm(reader.read()?, reader.read()?)),
-            OpCode::Add => Ok(Self::Add(reader.read()?, reader.read()?, reader.read()?)),
-            OpCode::Jump => Ok(Self::Jump(reader.read()?, reader.read()?)),
-            OpCode::Compare => Ok(Self::Compare(reader.read()?, reader.read()?)),
+            OpCode::Load => Ok(Self::Load {
+                dst: reader.read()?,
+                addr: reader.read()?,
+            }),
+            OpCode::Imm => Ok(Self::Imm {
+                dst: reader.read()?,
+                value: reader.read()?,
+            }),
+            OpCode::Add => Ok(Self::Add {
+                dst: reader.read()?,
+                lhs: reader.read()?,
+                rhs: reader.read()?,
+            }),
+            OpCode::Jump => Ok(Self::Jump {
+                cond: reader.read()?,
+                offset: reader.read()?,
+            }),
+            OpCode::Compare => Ok(Instruction::Compare {
+                lhs: reader.read()?,
+                rhs: reader.read()?,
+            }),
+            OpCode::Push => Ok(Instruction::Push(reader.read()?)),
+            OpCode::Pop => Ok(Instruction::Pop(reader.read()?)),
         }
     }
 
@@ -51,32 +88,40 @@ impl InstructionArg for Instruction {
         let mut writer = InstructionWriter::new(match data {
             Self::Halt => OpCode::Halt,
             Self::Nop => OpCode::Nop,
-            Self::Load(_, _) => OpCode::Load,
-            Self::Imm(_, _) => OpCode::Imm,
-            Self::Add(_, _, _) => OpCode::Add,
-            Self::Jump(_, _) => OpCode::Jump,
-            Self::Compare(_, _) => OpCode::Compare,
+            Self::Load { .. } => OpCode::Load,
+            Self::Imm { .. } => OpCode::Imm,
+            Self::Add { .. } => OpCode::Add,
+            Self::Jump { .. } => OpCode::Jump,
+            Self::Compare { .. } => OpCode::Compare,
+            Self::Push(_) => OpCode::Push,
+            Self::Pop(_) => OpCode::Pop,
         });
 
         match data {
             Self::Halt => (),
             Self::Nop => (),
-            Self::Load(dst, offset) => {
-                writer = writer.write(dst).write(offset);
+            Self::Load { dst, addr } => {
+                writer = writer.write(dst).write(addr);
             }
-            Self::Imm(dst, val) => {
-                writer = writer.write(dst).write(val);
+            Self::Imm { dst, value } => {
+                writer = writer.write(dst).write(value);
             }
-            Self::Add(dst, a1, a2) => {
-                writer = writer.write(dst).write(a1).write(a2);
+            Self::Add { dst, lhs, rhs } => {
+                writer = writer.write(dst).write(lhs).write(rhs);
             }
-            Self::Jump(cond, offset) => {
+            Self::Jump { cond, offset } => {
                 // We have some unused bits here
                 // We need to write them, in order to skip to the correct bit for the offset
                 writer = writer.write(cond).write(offset);
             }
-            Self::Compare(lhs, rhs) => {
+            Self::Compare { lhs, rhs } => {
                 writer = writer.write(lhs).write(rhs);
+            }
+            Self::Push(reg) => {
+                writer = writer.write(reg);
+            }
+            Self::Pop(reg) => {
+                writer = writer.write(reg);
             }
         }
 
@@ -89,11 +134,13 @@ impl Display for Instruction {
         match self {
             Self::Halt => write!(f, "Halt"),
             Self::Nop => write!(f, "Nop"),
-            Self::Load(dst, offset) => write!(f, "Load {}, {}", dst, offset.0),
-            Self::Imm(dst, val) => write!(f, "Imm {}, {}", dst, val.0),
-            Self::Add(dst, a1, a2) => write!(f, "Add {}, {}, {}", dst, a1, a2),
-            Self::Jump(cond, offset) => write!(f, "Jump {:?} {}", cond, offset.0 as i32),
-            Self::Compare(lhs, rhs) => write!(f, "Compare {}, {}", lhs, rhs),
+            Self::Load { dst, addr } => write!(f, "Load {}, {}", dst, addr.0),
+            Self::Imm { dst, value } => write!(f, "Imm {}, {}", dst, value.0),
+            Self::Add { dst, lhs, rhs } => write!(f, "Add {}, {}, {}", dst, lhs, rhs),
+            Self::Jump { cond, offset } => write!(f, "Jump {:?} {}", cond, offset.0 as i32),
+            Self::Compare { lhs, rhs } => write!(f, "Compare {}, {}", lhs, rhs),
+            Self::Push(reg) => write!(f, "Push {}", reg),
+            Self::Pop(reg) => write!(f, "Pop {}", reg),
         }
     }
 }

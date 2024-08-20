@@ -15,6 +15,9 @@ pub enum OpCode {
     Imm,  // Load an immediate value into a register
     Add,  // Add two numbers
 
+    Push, // Push a value onto the stack
+    Pop,  // Pop a value from the stack
+
     Compare, // Compare two numbers
 
     Jump, // Jump to a location

@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// # 6 Bit
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum Register {
     // General Purpose Registers
@@ -24,6 +24,9 @@ pub enum Register {
     RS2,
     // Instruction Pointer
     IP,
+    // Stack Pointer
+    SP,
+    // Condition Register for some flags
     Cond,
 }
 
@@ -31,7 +34,7 @@ impl InstructionArg for Register {
     const BIT_SIZE: u32 = 6; // We need to change representation if we grow past 8 bits (Should not happen)
 
     fn match_to_bytes(data: Self) -> u32 {
-        data as u32
+        Into::<u8>::into(data) as u32
     }
 
     fn match_from_bytes(data: u32) -> VMResult<Self>
@@ -39,18 +42,7 @@ impl InstructionArg for Register {
         Self: Sized,
     {
         let data = data as u8;
-        match data {
-            0 => Ok(Register::RA1),
-            1 => Ok(Register::RA2),
-            2 => Ok(Register::RA3),
-            3 => Ok(Register::RA4),
-            4 => Ok(Register::RA5),
-            5 => Ok(Register::RA6),
-            6 => Ok(Register::RS1),
-            7 => Ok(Register::RS2),
-            8 => Ok(Register::IP),
-            _ => Err(VMError::InvalidRegister(data)),
-        }
+        Self::try_from(data).map_err(|_| VMError::InvalidRegister(data))
     }
 }
 
@@ -66,6 +58,7 @@ impl Display for Register {
             Register::RS1 => "RS1",
             Register::RS2 => "RS2",
             Register::IP => "IP",
+            Register::SP => "SP",
             Register::Cond => "Cond",
         };
 
@@ -90,6 +83,9 @@ pub struct RegisterStore {
 
     // Instruction pointer
     ip: u32,
+
+    // Stack pointer
+    sp: u32,
 
     // Condition register
     // State of last operation
@@ -117,6 +113,7 @@ impl RegisterStore {
             Register::RS1 => self.rs1,
             Register::RS2 => self.rs2,
             Register::IP => self.ip,
+            Register::SP => self.sp,
             Register::Cond => self.cond,
         }
     }
@@ -132,6 +129,7 @@ impl RegisterStore {
             Register::RS1 => self.rs1 = value,
             Register::RS2 => self.rs2 = value,
             Register::IP => self.ip = value,
+            Register::SP => self.sp = value,
             Register::Cond => self.cond = value,
         };
     }

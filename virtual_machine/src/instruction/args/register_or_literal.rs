@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::{error::VMResult, register::Register, sign_extend, Machine};
+use crate::{error::VMResult, machine::Machine, register::Register, sign_extend};
 
 use super::InstructionArg;
 
