@@ -31,6 +31,7 @@ impl Machine {
     pub fn reset_registers(&mut self) {
         self.registers = RegisterStore::default();
         self.registers.set(Register::IP, 3000);
+        self.registers.set(Register::SP, 1000);
     }
 
     pub fn run(mut self, step_mode: bool) -> VMResult<Self> {
@@ -104,15 +105,15 @@ impl Machine {
             }
             Instruction::Push(reg) => {
                 let sp = self.registers.get(Register::SP);
-                let reg_val = self.registers.get(reg);
+                let reg_val = reg.get_val(self);
                 self.memory.write(sp, reg_val)?;
-                self.registers.set(Register::SP, sp - 1);
+                self.registers.set(Register::SP, sp + 1);
             }
             Instruction::Pop(reg) => {
                 let sp = self.registers.get(Register::SP);
-                let reg_val = self.memory.read(sp + 1)?;
+                let reg_val = self.memory.read(sp - 1)?;
                 self.registers.set(reg, reg_val);
-                self.registers.set(Register::SP, sp + 1);
+                self.registers.set(Register::SP, sp - 1);
             }
         }
 

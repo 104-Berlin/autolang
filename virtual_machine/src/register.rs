@@ -216,6 +216,13 @@ impl Display for RegisterStore {
             Cell::new(&format!("{:b}", self.ip)),
         ]));
         table.add_row(Row::new(vec![
+            Cell::new("SP"),
+            Cell::new(&format!("{}", self.sp as i32)),
+            Cell::new(&format!("{}", self.sp)),
+            Cell::new(&format!("{:#X}", self.sp)),
+            Cell::new(&format!("{:b}", self.sp)),
+        ]));
+        table.add_row(Row::new(vec![
             Cell::new("Cond"),
             Cell::new(&format!("{}", self.cond as i32)),
             Cell::new(&format!("{}", self.cond)),

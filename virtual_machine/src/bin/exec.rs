@@ -20,7 +20,7 @@ fn main() -> VMResult<()> {
 
     let mut memory = vec![0u32; SIZE_IN_4_BYTES];
     memory[2999] = 12;
-    prog_simple_loop(ProgramBuilder::new(memory))?
+    prog_stack(ProgramBuilder::new(memory))?
         .finish()
         .run(step_mode)?;
     Ok(())
@@ -75,4 +75,11 @@ fn prog_simple_loop(builder: ProgramBuilder) -> VMResult<ProgramBuilder> {
             cond: JumpCondition::NotZero,
             offset: Arg20(-3i32 as u32),
         })
+}
+
+#[allow(dead_code)]
+fn prog_stack(builder: ProgramBuilder) -> VMResult<ProgramBuilder> {
+    builder
+        .add_instruction(Instruction::Push(RegisterOrLiteral::Literal(32)))?
+        .add_instruction(Instruction::Pop(Register::RA1))
 }

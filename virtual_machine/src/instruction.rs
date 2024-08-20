@@ -40,7 +40,7 @@ pub enum Instruction {
         offset: Arg20,
     },
 
-    Push(Register),
+    Push(RegisterOrLiteral),
     Pop(Register),
 }
 
