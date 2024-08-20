@@ -131,6 +131,7 @@ dependencies = [
  "reset_iterator",
  "source-span",
  "utf8-chars",
+ "virtual_machine",
 ]
 
 [[package]]

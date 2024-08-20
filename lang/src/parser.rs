@@ -7,7 +7,7 @@ use structs::Struct;
 use type_def::TypeID;
 
 use crate::{
-    error::{ALResult, Error, ErrorKind},
+    error::{ALError, ALResult, ErrorKind},
     input_stream::InputStream,
     module::Module,
     spanned::Spanned,
@@ -34,7 +34,7 @@ impl Parser {
 }
 
 impl TryInto<Spanned<Expr>> for Parser {
-    type Error = Error;
+    type Error = ALError;
 
     fn try_into(mut self) -> Result<Spanned<Expr>, Self::Error> {
         self.parse_expression()
@@ -42,7 +42,7 @@ impl TryInto<Spanned<Expr>> for Parser {
 }
 
 impl TryInto<Spanned<Module>> for Parser {
-    type Error = Error;
+    type Error = ALError;
 
     fn try_into(mut self) -> Result<Spanned<Module>, Self::Error> {
         self.parse_module()
@@ -71,7 +71,7 @@ impl Parser {
                     module.add_struct(struct_name, struct_decl);
                 }
                 _ => {
-                    return Err(Error::new(
+                    return Err(ALError::new(
                         span,
                         ErrorKind::UnexpectedToken {
                             found: value,
@@ -190,7 +190,7 @@ impl Parser {
                 self.consume_checked(Token::Identifier(Identifier::RParen))?;
                 Ok(expr)
             }
-            _ => Err(Error::new(
+            _ => Err(ALError::new(
                 span,
                 ErrorKind::UnexpectedToken {
                     found: value,
@@ -478,7 +478,7 @@ impl Parser {
                 self.input.consume();
                 Ok(Spanned::new(name, span))
             }
-            tok => Err(Error::new_unexpected_token(tok, None)),
+            tok => Err(ALError::new_unexpected_token(tok, None)),
         }
     }
 
@@ -532,7 +532,7 @@ impl Parser {
                 self.input.consume();
                 Ok(Spanned::new(TypeID::from_string(&type_name), span))
             }
-            tok => Err(Error::new_unexpected_token(tok, None)),
+            tok => Err(ALError::new_unexpected_token(tok, None)),
         }
     }
 }
@@ -564,7 +564,7 @@ impl Parser {
         if token.value == expected {
             Ok(token)
         } else {
-            Err(Error::new_unexpected_token(token, Some(expected)))
+            Err(ALError::new_unexpected_token(token, Some(expected)))
         }
     }
 
@@ -575,7 +575,7 @@ impl Parser {
             self.input.consume();
             Ok(token)
         } else {
-            Err(Error::new_unexpected_token(token, Some(expected)))
+            Err(ALError::new_unexpected_token(token, Some(expected)))
         }
     }
 
@@ -586,6 +586,6 @@ impl Parser {
         self.input
             .peek()
             .cloned()
-            .ok_or(Error::new(Span::default(), ErrorKind::UnexpectedEOF))
+            .ok_or(ALError::new(Span::default(), ErrorKind::UnexpectedEOF))
     }
 }

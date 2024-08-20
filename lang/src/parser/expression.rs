@@ -1,8 +1,20 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Deref};
 
-use crate::{spanned::Spanned, tokenizer::literal::Literal};
+use virtual_machine::{
+    instruction::{
+        args::{arg20::Arg20, register_or_literal::RegisterOrLiteral},
+        Instruction,
+    },
+    program_builder::Buildable,
+    register::Register,
+};
 
-use super::{binary_expression::BinaryExpression, type_def::TypeID};
+use crate::{error::ALError, spanned::Spanned, tokenizer::literal::Literal};
+
+use super::{
+    binary_expression::{BinaryExpression, BinaryOperator},
+    type_def::TypeID,
+};
 
 pub type IfCondition = (Box<Spanned<Expr>>, Box<Spanned<Expr>>);
 
@@ -151,5 +163,82 @@ impl Display for Expr {
             Expr::Break => write!(f, "break"),
             Expr::Continue => write!(f, "continue"),
         }
+    }
+}
+
+impl Buildable for Expr {
+    type Error = ALError;
+
+    fn build(
+        &self,
+        builder: &mut virtual_machine::program_builder::ProgramBuilder,
+    ) -> Result<(), Self::Error> {
+        match self {
+            Expr::Dot { lhs, rhs } => todo!(),
+            Expr::FunctionCall(_, _) => todo!(),
+            Expr::Binary(bin) => {
+                bin.value.lhs.build(builder)?;
+                builder.add_instruction(Instruction::Copy {
+                    dst: Register::RS2,
+                    src: Register::RS1,
+                })?;
+                bin.value.rhs.build(builder)?;
+                match *bin.op {
+                    BinaryOperator::Add => builder.add_instruction(Instruction::Add {
+                        dst: Register::RS1,
+                        lhs: Register::RS2.into(),
+                        rhs: Register::RS1.into(),
+                    })?,
+
+                    BinaryOperator::Assign => todo!(),
+                    BinaryOperator::Substract => todo!(),
+                    BinaryOperator::Multiply => todo!(),
+                    BinaryOperator::Divide => todo!(),
+                    BinaryOperator::And => todo!(),
+                    BinaryOperator::Or => todo!(),
+                    BinaryOperator::Equal => todo!(),
+                    BinaryOperator::NotEqual => todo!(),
+                    BinaryOperator::LessThan => todo!(),
+                    BinaryOperator::LessThanOrEqual => todo!(),
+                    BinaryOperator::GreaterThan => todo!(),
+                    BinaryOperator::GreaterThanOrEqual => todo!(),
+                };
+            }
+            Expr::Literal(val) => match **val {
+                // This is very bad. We are currently converting a i64 to an u32 (Arg20)
+                Literal::NumberInt(val) => builder.add_instruction(Instruction::Imm {
+                    dst: Register::RS1,
+                    value: Arg20(val as u32),
+                })?,
+                Literal::NumberFloat(_) => todo!("Floats are not supported yet"),
+                Literal::String(_) => todo!("Strings are not supported yet"),
+                Literal::Bool(_) => todo!("Bools are not supported yet"),
+            },
+            Expr::StructLiteral(_, _) => todo!(),
+            Expr::Variable(_) => todo!(),
+            Expr::Assignment(_, _) => todo!(),
+            Expr::Let(symbol, typ, assign) => {
+                assign.build(builder)?;
+                builder.add_instruction(Instruction::Push(Register::RS1.into()))?;
+            }
+            Expr::IfExpression {
+                if_block,
+                else_if_blocks,
+                else_block,
+            } => todo!(),
+            Expr::Loop(_) => todo!(),
+            Expr::Block(statements, return_expr) => {
+                for statement in statements {
+                    statement.build(builder)?;
+                }
+                if let Some(return_expr) = return_expr {
+                    return_expr.build(builder)?;
+                }
+            }
+            Expr::Return(_) => todo!(),
+            Expr::Break => todo!(),
+            Expr::Continue => todo!(),
+        }
+        Ok(())
     }
 }

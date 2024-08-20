@@ -2,6 +2,7 @@ use source_span::{
     fmt::{Formatter, Style},
     Position, Span,
 };
+use virtual_machine::error::VMError;
 
 use crate::{
     execution::value::Value,
@@ -13,10 +14,10 @@ use crate::{
     tokenizer::{token::Token, Tokenizer},
 };
 
-pub type ALResult<T> = Result<Spanned<T>, Error>;
+pub type ALResult<T> = Result<Spanned<T>, ALError>;
 
 #[derive(Debug)]
-pub struct Error {
+pub struct ALError {
     kind: Box<ErrorKind>,
     span: Span,
 }
@@ -55,6 +56,9 @@ pub enum ErrorKind {
 
     NoMainFunction,
 
+    // VM Errors
+    VmError(VMError),
+
     // For controll flow
     Return(Value),
     Break,
@@ -71,9 +75,9 @@ pub enum TypeMismatchReason {
 
 impl std::error::Error for ErrorKind {}
 
-impl Error {
-    pub fn new(span: Span, kind: ErrorKind) -> Error {
-        Error { span, kind: Box::new(kind) }
+impl ALError {
+    pub fn new(span: Span, kind: ErrorKind) -> Self {
+        Self { span, kind: Box::new(kind) }
     }
 
     pub fn with_span(self) -> Self {
@@ -86,8 +90,8 @@ impl Error {
     pub fn new_unexpected_token(
         Spanned::<Token> { value, span }: Spanned<Token>,
         expected: Option<Token>,
-    ) -> Error {
-        Error::new(
+    ) -> Self {
+        Self::new(
             span,
             ErrorKind::UnexpectedToken {
                 found: value,
@@ -96,8 +100,8 @@ impl Error {
         )
     }
 
-    pub fn new_invalid_number_of_arguments(span: Span, expected: usize, found: usize) -> Error {
-        Error::new(
+    pub fn new_invalid_number_of_arguments(span: Span, expected: usize, found: usize) -> Self {
+        Self::new(
             span,
             ErrorKind::InvalidNumberOfArguments { expected, found },
         )
@@ -108,8 +112,8 @@ impl Error {
         expected: TypeID,
         found: TypeID,
         reason: TypeMismatchReason,
-    ) -> Error {
-        Error::new(
+    ) -> Self {
+        Self::new(
             span,
             ErrorKind::TypeMismatch {
                 expected,
@@ -157,7 +161,7 @@ impl Error {
     }
 }
 
-impl std::fmt::Display for Error {
+impl std::fmt::Display for ALError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
@@ -236,21 +240,31 @@ impl std::fmt::Display for ErrorKind {
                 TypeDef::Struct(_) => write!(f, "Failed to access field of struct"),
             },
             Self::NoMainFunction => write!(f, "No main function found"),
+            Self::VmError(err) => write!(f, "VM ERROE!\n{}", err),
             Self::Break | Self::Continue | Self::Return(_) => unreachable!("Break, Continue and Return should be handled by the executor. They should never result in an error"),
         }
     }
 }
 
-impl std::error::Error for Error {
+impl std::error::Error for ALError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         std::error::Error::source(&self.kind)
     }
 }
 
-impl From<ErrorKind> for Error {
+impl From<ErrorKind> for ALError {
     fn from(value: ErrorKind) -> Self {
-        Error {
+        Self {
             kind: Box::new(value),
+            span: Span::default(),
+        }
+    }
+}
+
+impl From<VMError> for ALError {
+    fn from(value: VMError) -> Self {
+        Self {
+            kind: Box::new(ErrorKind::VmError(value)),
             span: Span::default(),
         }
     }

@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use source_span::Span;
 
 #[derive(Clone, Debug)]
@@ -35,5 +37,13 @@ impl<T> From<T> for Spanned<T> {
             span: Span::default(),
             value,
         }
+    }
+}
+
+impl<T> Deref for Spanned<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
     }
 }

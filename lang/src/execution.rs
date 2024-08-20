@@ -5,7 +5,7 @@ use source_span::Span;
 use value::Value;
 
 use crate::{
-    error::{ALResult, Error, ErrorKind, TypeMismatchReason},
+    error::{ALError, ALResult, ErrorKind, TypeMismatchReason},
     module::Module,
     parser::{
         binary_expression::{BinaryExpression, BinaryOperator},
@@ -71,7 +71,7 @@ impl<'a> ExecutionContext<'a> {
         {
             main.value.proto.value.name.clone()
         } else {
-            return Err(Error::new(self.span, ErrorKind::NoMainFunction));
+            return Err(ALError::new(self.span, ErrorKind::NoMainFunction));
         };
 
         self.run_function(func_name, &[])
@@ -102,7 +102,7 @@ impl<'a> ExecutionContext<'a> {
         match (system_function, function) {
             (Some(func), _) => self.run_system_function(func_name, func.1.as_ref(), input_values),
             (None, Some(func)) => self.run_declared_function(func_name.span, func, input_values),
-            (None, None) => Err(Error::new(
+            (None, None) => Err(ALError::new(
                 func_name.span,
                 ErrorKind::FunctionNotFound(func_name.value),
             )),
@@ -117,7 +117,7 @@ impl<'a> ExecutionContext<'a> {
     ) -> ALResult<Value> {
         // Check for provided arguments
         /*if proto.arguments.value.len() != arguments.len() {
-            return Err(Error::new_invalid_number_of_arguments(
+            return Err(ALError::new_invalid_number_of_arguments(
                 call_span.span,
                 proto.arguments.value.len(),
                 arguments.len(),
@@ -128,7 +128,7 @@ impl<'a> ExecutionContext<'a> {
             arguments
                 .into_iter()
                 .map(|arg| arg.map(|v| v.value))
-                .collect::<Result<Vec<_>, Error>>()?,
+                .collect::<Result<Vec<_>, ALError>>()?,
         );
 
         Ok(Spanned::new(result, call_span.span))
@@ -142,7 +142,7 @@ impl<'a> ExecutionContext<'a> {
     ) -> ALResult<Value> {
         // Check for provided arguments
         if function.value.proto.value.arguments.value.len() != arguments.len() {
-            return Err(Error::new_invalid_number_of_arguments(
+            return Err(ALError::new_invalid_number_of_arguments(
                 call_span,
                 function.value.proto.value.arguments.value.len(),
                 arguments.len(),
@@ -168,7 +168,7 @@ impl<'a> ExecutionContext<'a> {
         {
             let value = value?;
             if value.value.type_id != arg_type.value {
-                return Err(Error::new_type_mismatch(
+                return Err(ALError::new_type_mismatch(
                     value.span,
                     arg_type.value.clone(),
                     value.value.type_id.clone(),
@@ -190,7 +190,7 @@ impl<'a> ExecutionContext<'a> {
             let (kind, span) = err.split();
             match kind {
                 ErrorKind::Return(val) => Ok(Spanned::new(val, span)),
-                _ => Err(Error::new(span, kind)),
+                _ => Err(ALError::new(span, kind)),
             }
         })?;
 
@@ -199,7 +199,7 @@ impl<'a> ExecutionContext<'a> {
 
         if res.value.type_id != return_type {
             // Return types dont match
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 res.span,
                 return_type,
                 res.value.type_id.clone(),
@@ -229,9 +229,9 @@ impl<'a> ExecutionContext<'a> {
                                                     .get_field(index)
                                                     .expect("Field must exist. Or we try to access wrong struct")
                                                     .clone()
-                                ).ok_or(Error::new(expr.span, ErrorKind::StructFieldNotFound(name.value.clone())))
+                                ).ok_or(ALError::new(expr.span, ErrorKind::StructFieldNotFound(name.value.clone())))
                             }
-                            _ => Err(Error::new(span.next().union(name.span), ErrorKind::FailedToAccessField(type_def.value))),
+                            _ => Err(ALError::new(span.next().union(name.span), ErrorKind::FailedToAccessField(type_def.value))),
                         }
                     }
                     _ => unimplemented!(),
@@ -255,7 +255,7 @@ impl<'a> ExecutionContext<'a> {
                     self.find_type_def(&name.clone().map_value(TypeID::User))?;
 
                 let TypeDef::Struct(struct_def) = value else {
-                    return Err(Error::new(
+                    return Err(ALError::new(
                         name.span,
                         ErrorKind::TypeNotFound(name.value.clone()),
                     ));
@@ -267,14 +267,14 @@ impl<'a> ExecutionContext<'a> {
                         .iter()
                         .find(|f| f.0.value == struct_def_field.value.0)
                         .map(|f| self.run_expr(&f.1))
-                        .ok_or(Error::new(
+                        .ok_or(ALError::new(
                             expr.span,
                             ErrorKind::StructFieldNotInitialized(struct_def_field.value.0.clone()),
                         ))??;
 
                     // Handle invalid type
                     if field.value.type_id != struct_def_field.value.1 {
-                        return Err(Error::new_type_mismatch(
+                        return Err(ALError::new_type_mismatch(
                             field.span,
                             struct_def_field.value.1.clone(),
                             field.value.type_id,
@@ -286,7 +286,7 @@ impl<'a> ExecutionContext<'a> {
                 // Check if we try to initialize a field that is not in the struct
                 for field in field_inits {
                     if !struct_def.fields.iter().any(|f| f.value.0 == field.0.value) {
-                        return Err(Error::new(
+                        return Err(ALError::new(
                             field.0.span,
                             ErrorKind::StructFieldNotFound(field.0.value.clone()),
                         ));
@@ -312,7 +312,7 @@ impl<'a> ExecutionContext<'a> {
                         .iter()
                         .find(|var| var.value.0 == var_name.value)
                 }) {
-                    return Err(Error::new(
+                    return Err(ALError::new(
                         var_name.span,
                         ErrorKind::VariableAlreadyDeclared(var_name.value.clone()),
                     ));
@@ -324,7 +324,7 @@ impl<'a> ExecutionContext<'a> {
 
                 if let Some(type_id) = type_id {
                     if value.type_id != type_id.value {
-                        return Err(Error::new_type_mismatch(
+                        return Err(ALError::new_type_mismatch(
                             span,
                             type_id.value.clone(),
                             value.type_id,
@@ -353,7 +353,7 @@ impl<'a> ExecutionContext<'a> {
                         var.value.set_value(&rhs)?;
                         return Ok(Spanned::new(rhs.value, expr.span));
                     } else {
-                        return Err(Error::new(lhs.span, ErrorKind::InvalidAssignmentTarget));
+                        return Err(ALError::new(lhs.span, ErrorKind::InvalidAssignmentTarget));
                     }
                 }
 
@@ -384,7 +384,7 @@ impl<'a> ExecutionContext<'a> {
                 else_block,
             } => {
                 let condition = self.run_expr(condition)?;
-                let value = condition.value.as_bool().ok_or(Error::new_type_mismatch(
+                let value = condition.value.as_bool().ok_or(ALError::new_type_mismatch(
                     condition.span,
                     TypeID::Bool,
                     condition.value.type_id.clone(),
@@ -397,7 +397,7 @@ impl<'a> ExecutionContext<'a> {
 
                 for (else_if_cond, else_if_block) in else_if_blocks {
                     let condition = self.run_expr(else_if_cond)?;
-                    let value = condition.value.as_bool().ok_or(Error::new_type_mismatch(
+                    let value = condition.value.as_bool().ok_or(ALError::new_type_mismatch(
                         condition.span,
                         TypeID::Bool,
                         condition.value.type_id.clone(),
@@ -434,7 +434,7 @@ impl<'a> ExecutionContext<'a> {
                         match kind {
                             ErrorKind::Break => break Ok(Spanned::new(Value::new_void(), span)),
                             ErrorKind::Continue => continue,
-                            _ => return Err(Error::new(span, kind)),
+                            _ => return Err(ALError::new(span, kind)),
                         }
                     }
                 }
@@ -446,10 +446,10 @@ impl<'a> ExecutionContext<'a> {
                     .map(|e| self.run_expr(e))
                     .transpose()?
                     .unwrap_or(Spanned::new(Value::new_void(), expr.span));
-                Err(Error::new(value.span, ErrorKind::Return(value.value)))
+                Err(ALError::new(value.span, ErrorKind::Return(value.value)))
             }
-            Expr::Break => Err(Error::new(expr.span, ErrorKind::Break)),
-            Expr::Continue => Err(Error::new(expr.span, ErrorKind::Continue)),
+            Expr::Break => Err(ALError::new(expr.span, ErrorKind::Break)),
+            Expr::Continue => Err(ALError::new(expr.span, ErrorKind::Continue)),
         }
     }
 }
@@ -468,7 +468,7 @@ impl ExecutionContext<'_> {
             }
         }
 
-        Err(Error::new(
+        Err(ALError::new(
             name.span,
             ErrorKind::VariableNotFound(name.value.clone()),
         ))
@@ -485,7 +485,7 @@ impl ExecutionContext<'_> {
             TypeID::User(name) => {
                 let type_def = self.public_types.get(name).cloned();
 
-                type_def.ok_or(Error::new(
+                type_def.ok_or(ALError::new(
                     type_id.span,
                     ErrorKind::TypeNotFound(name.clone()),
                 ))

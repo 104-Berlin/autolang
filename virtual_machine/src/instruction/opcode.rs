@@ -13,6 +13,7 @@ pub enum OpCode {
     Nop,  // Do nothing
     Load, // Load a value into a register
     Imm,  // Load an immediate value into a register
+    Copy, // Copy a value from one register to another
     Add,  // Add two numbers
 
     Push, // Push a value onto the stack

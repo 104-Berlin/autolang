@@ -1,3 +1,4 @@
+pub mod compiler;
 pub mod error;
 pub mod execution;
 pub mod input_stream;

@@ -22,6 +22,10 @@ pub enum Instruction {
         dst: Register,
         addr: Arg20,
     },
+    Copy {
+        dst: Register,
+        src: Register,
+    },
     Imm {
         dst: Register,
         value: Arg20,
@@ -66,6 +70,10 @@ impl InstructionArg for Instruction {
                 dst: reader.read()?,
                 value: reader.read()?,
             }),
+            OpCode::Copy => Ok(Self::Copy {
+                dst: reader.read()?,
+                src: reader.read()?,
+            }),
             OpCode::Add => Ok(Self::Add {
                 dst: reader.read()?,
                 lhs: reader.read()?,
@@ -90,6 +98,7 @@ impl InstructionArg for Instruction {
             Self::Nop => OpCode::Nop,
             Self::Load { .. } => OpCode::Load,
             Self::Imm { .. } => OpCode::Imm,
+            Self::Copy { .. } => OpCode::Copy,
             Self::Add { .. } => OpCode::Add,
             Self::Jump { .. } => OpCode::Jump,
             Self::Compare { .. } => OpCode::Compare,
@@ -105,6 +114,9 @@ impl InstructionArg for Instruction {
             }
             Self::Imm { dst, value } => {
                 writer = writer.write(dst).write(value);
+            }
+            Self::Copy { dst, src } => {
+                writer = writer.write(dst).write(src);
             }
             Self::Add { dst, lhs, rhs } => {
                 writer = writer.write(dst).write(lhs).write(rhs);
@@ -136,6 +148,7 @@ impl Display for Instruction {
             Self::Nop => write!(f, "Nop"),
             Self::Load { dst, addr } => write!(f, "Load {}, {}", dst, addr.0),
             Self::Imm { dst, value } => write!(f, "Imm {}, {}", dst, value.0),
+            Self::Copy { dst, src } => write!(f, "Copy {} => {}", dst, src),
             Self::Add { dst, lhs, rhs } => write!(f, "Add {}, {}, {}", dst, lhs, rhs),
             Self::Jump { cond, offset } => write!(f, "Jump {:?} {}", cond, offset.0 as i32),
             Self::Compare { lhs, rhs } => write!(f, "Compare {}, {}", lhs, rhs),

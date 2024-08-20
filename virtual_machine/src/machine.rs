@@ -18,9 +18,12 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(memory: Box<dyn Memory>) -> Machine {
+    pub const STACK_START: u32 = 1000;
+    pub const PROGRAM_START: u32 = 3000;
+
+    pub fn new() -> Machine {
         let mut res = Self {
-            memory,
+            memory: Box::new(vec![0u32; 1024 * 1024 * 4]),
             registers: RegisterStore::default(),
             halt: false,
         };
@@ -28,10 +31,17 @@ impl Machine {
         res
     }
 
+    pub fn load_program(mut self, program: &[u32]) -> VMResult<Self> {
+        for (i, instr) in program.iter().enumerate() {
+            self.memory.write(Self::PROGRAM_START + i as u32, *instr)?;
+        }
+        Ok(self)
+    }
+
     pub fn reset_registers(&mut self) {
         self.registers = RegisterStore::default();
-        self.registers.set(Register::IP, 3000);
-        self.registers.set(Register::SP, 1000);
+        self.registers.set(Register::IP, Self::PROGRAM_START);
+        self.registers.set(Register::SP, Self::STACK_START);
     }
 
     pub fn run(mut self, step_mode: bool) -> VMResult<Self> {
@@ -70,6 +80,10 @@ impl Machine {
             Instruction::Nop => (),
             Instruction::Load { dst, addr } => self.load(dst, addr)?,
             Instruction::Imm { dst, value } => self.imm(dst, value),
+            Instruction::Copy { dst, src } => {
+                self.registers.set(dst, self.registers.get(src));
+                self.registers.update_condition(dst);
+            }
             Instruction::Add { dst, lhs, rhs } => self.add(dst, lhs, rhs),
             Instruction::Jump { cond, offset } => {
                 let cond_flags = self.registers.get(Register::Cond) as u8;
@@ -100,8 +114,8 @@ impl Machine {
                 let rhs = rhs.get_val(self);
 
                 // Store the result in RS1 to update the condition flags
-                self.registers.set(Register::RS1, lhs - rhs);
-                self.registers.update_condition(Register::RS1);
+                self.registers.set(Register::RSC, lhs - rhs);
+                self.registers.update_condition(Register::RSC);
             }
             Instruction::Push(reg) => {
                 let sp = self.registers.get(Register::SP);
@@ -146,5 +160,15 @@ impl Machine {
         self.registers
             .set(dst, a.get_val(self).wrapping_add(b.get_val(self)));
         self.registers.update_condition(dst);
+    }
+
+    pub fn dump_stack(&self) {
+        let sp = self.registers.get(Register::SP);
+        let mut sp = sp;
+        while sp > Self::STACK_START {
+            sp -= 1;
+            let val = self.memory.read(sp).unwrap();
+            println!("{}: {}", sp, val);
+        }
     }
 }

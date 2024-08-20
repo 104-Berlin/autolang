@@ -1,4 +1,7 @@
+use virtual_machine::program_builder::{Buildable, ProgramBuilder};
+
 use crate::{
+    error::ALError,
     parser::{function::FunctionDecl, structs::Struct},
     spanned::Spanned,
 };
@@ -36,5 +39,17 @@ impl Module {
 
     pub fn structs(&self) -> &[(Spanned<String>, Spanned<Struct>)] {
         &self.structs
+    }
+}
+
+impl Buildable for Module {
+    type Error = ALError;
+
+    fn build(&self, builder: &mut ProgramBuilder) -> Result<(), Self::Error> {
+        for func in self.functions() {
+            func.build(builder)?;
+        }
+
+        Ok(())
     }
 }

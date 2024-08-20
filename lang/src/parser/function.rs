@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use crate::spanned::Spanned;
+use virtual_machine::program_builder::{Buildable, ProgramBuilder};
+
+use crate::{error::ALError, spanned::Spanned};
 
 use super::{expression::Expr, type_def::TypeID};
 
@@ -35,5 +37,12 @@ impl Display for FunctionProto {
 impl Display for FunctionDecl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {{\n{}\n}}", self.proto.value, self.body.value)
+    }
+}
+
+impl Buildable for FunctionDecl {
+    type Error = ALError;
+    fn build(&self, builder: &mut ProgramBuilder) -> Result<(), Self::Error> {
+        self.body.build(builder)
     }
 }

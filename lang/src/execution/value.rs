@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    error::{ALResult, Error, ErrorKind, TypeMismatchReason},
+    error::{ALError, ALResult, ErrorKind, TypeMismatchReason},
     parser::{binary_expression::BinaryOperator, structs::StructValue, type_def::TypeID},
     spanned::Spanned,
 };
@@ -111,7 +111,7 @@ impl Value {
             }
             Ok(Spanned::new((), other.span))
         } else {
-            Err(Error::new_type_mismatch(
+            Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -122,7 +122,7 @@ impl Value {
 
     pub fn add(&self, other: &Spanned<Self>) -> ALResult<Self> {
         /*if self.type_id != other.value.type_id {
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -164,13 +164,13 @@ impl Value {
                 self,
                 other.value.as_string().unwrap()
             ))),
-            (TypeID::Bool, _) => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
-            (_, TypeID::Bool) => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            (TypeID::Bool, _) => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
+            (_, TypeID::Bool) => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
             (TypeID::Void, _) => Ok(Value::new_void()),
             (_, TypeID::Void) => Ok(self.clone()),
             (TypeID::User(_), _) => todo!(),
             (_, TypeID::User(_)) => todo!(),
-            (_, _) => Err(Error::new_type_mismatch(
+            (_, _) => Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -182,7 +182,7 @@ impl Value {
 
     pub fn sub(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -198,7 +198,7 @@ impl Value {
                 self.as_float().unwrap() - other.value.as_float().unwrap(),
             )),
             TypeID::String => todo!(),
-            TypeID::Bool => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
             TypeID::Void => todo!(),
             TypeID::User(_) => todo!(),
         }
@@ -207,7 +207,7 @@ impl Value {
 
     pub fn mul(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -223,7 +223,7 @@ impl Value {
                 self.as_float().unwrap() * other.value.as_float().unwrap(),
             )),
             TypeID::String => todo!(),
-            TypeID::Bool => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
             TypeID::Void => todo!(),
             TypeID::User(_) => todo!(),
         }
@@ -232,7 +232,7 @@ impl Value {
 
     pub fn div(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -248,7 +248,7 @@ impl Value {
                 self.as_float().unwrap() / other.value.as_float().unwrap(),
             )),
             TypeID::String => todo!(),
-            TypeID::Bool => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
             TypeID::Void => todo!(),
             TypeID::User(_) => todo!(),
         }
@@ -258,7 +258,7 @@ impl Value {
     // Logical operations
     pub fn and(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != TypeID::Bool || other.value.type_id != TypeID::Bool {
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -274,7 +274,7 @@ impl Value {
 
     pub fn or(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != TypeID::Bool || other.value.type_id != TypeID::Bool {
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -294,7 +294,7 @@ impl Value {
     /// This will always return a boolean value or an error if the types dont match.
     pub fn eq(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -330,7 +330,7 @@ impl Value {
 
     pub fn lt(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -348,7 +348,7 @@ impl Value {
             TypeID::String => Ok(Self::new_bool(
                 self.as_string().unwrap() < other.value.as_string().unwrap(),
             )),
-            TypeID::Bool => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
             TypeID::Void => Ok(Self::new_bool(true)),
             TypeID::User(_) => todo!(),
         }
@@ -357,7 +357,7 @@ impl Value {
 
     pub fn gt(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(Error::new_type_mismatch(
+            return Err(ALError::new_type_mismatch(
                 other.span,
                 self.type_id.clone(),
                 other.value.type_id.clone(),
@@ -375,7 +375,7 @@ impl Value {
             TypeID::String => Ok(Self::new_bool(
                 self.as_string().unwrap() > other.value.as_string().unwrap(),
             )),
-            TypeID::Bool => Err(Error::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
             TypeID::Void => Ok(Self::new_bool(true)),
             TypeID::User(_) => todo!(),
         }

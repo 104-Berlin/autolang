@@ -66,47 +66,20 @@ pub trait Memory {
     }
 }
 
-impl Memory for Vec<u32> {
+impl<T: AsRef<[u32]> + AsMut<[u32]>> Memory for T {
     fn read(&self, address: u32) -> VMResult<u32> {
-        self.get(address as usize)
+        self.as_ref()
+            .get(address as usize)
             .copied()
             .ok_or(VMError::FailedToReadMemory(address))
     }
 
     fn write(&mut self, address: u32, value: u32) -> VMResult<()> {
-        if address as usize >= self.len() {
+        if address as usize >= self.as_ref().len() {
             return Err(VMError::FailedToWriteMemory(address));
         }
-        self[address as usize] = value;
-        Ok(())
-    }
-}
-
-impl Memory for Vec<u8> {
-    fn read(&self, address: u32) -> VMResult<u32> {
-        let address = (address * 4) as usize;
-        let value = self
-            .get(address..address + 4)
-            .ok_or(VMError::FailedToReadMemory(address as u32))?;
-        Ok(u32::from_le_bytes(value.try_into().unwrap()))
-    }
-
-    fn write(&mut self, address: u32, value: u32) -> VMResult<()> {
-        let address = (address * 4) as usize;
-        self[address..address + 4].copy_from_slice(&value.to_le_bytes());
-        Ok(())
-    }
-
-    fn read1(&self, address: u32, byte: u8) -> VMResult<u8> {
-        let address = (address * 4 + byte as u32) as usize;
-        self.get(address)
-            .copied()
-            .ok_or(VMError::FailedToReadMemory(address as u32))
-    }
-
-    fn write1(&mut self, address: u32, byte: u8, value: u8) -> VMResult<()> {
-        let address = (address * 4 + byte as u32) as usize;
-        self[address] = value;
+        let slice = self.as_mut();
+        slice[address as usize] = value;
         Ok(())
     }
 }

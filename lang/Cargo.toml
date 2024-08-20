@@ -7,3 +7,4 @@ edition = "2021"
 source-span = { version = "2.7.0", default-features = false }
 utf8-chars = "3.0.3"
 reset_iterator = { path = "../reset_iterator" }
+virtual_machine = { path = "../virtual_machine" }

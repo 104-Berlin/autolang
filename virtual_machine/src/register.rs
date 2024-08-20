@@ -22,6 +22,8 @@ pub enum Register {
     // System registers
     RS1,
     RS2,
+    // Register for condition flags
+    RSC,
     // Instruction Pointer
     IP,
     // Stack Pointer
@@ -57,6 +59,7 @@ impl Display for Register {
             Register::RA6 => "RA6",
             Register::RS1 => "RS1",
             Register::RS2 => "RS2",
+            Register::RSC => "RSC",
             Register::IP => "IP",
             Register::SP => "SP",
             Register::Cond => "Cond",
@@ -80,6 +83,8 @@ pub struct RegisterStore {
     // System register
     rs1: u32,
     rs2: u32,
+
+    rsc: u32,
 
     // Instruction pointer
     ip: u32,
@@ -112,6 +117,7 @@ impl RegisterStore {
             Register::RA6 => self.ra6,
             Register::RS1 => self.rs1,
             Register::RS2 => self.rs2,
+            Register::RSC => self.rsc,
             Register::IP => self.ip,
             Register::SP => self.sp,
             Register::Cond => self.cond,
@@ -128,6 +134,7 @@ impl RegisterStore {
             Register::RA6 => self.ra6 = value,
             Register::RS1 => self.rs1 = value,
             Register::RS2 => self.rs2 = value,
+            Register::RSC => self.rsc = value,
             Register::IP => self.ip = value,
             Register::SP => self.sp = value,
             Register::Cond => self.cond = value,
