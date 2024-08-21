@@ -5,7 +5,7 @@ use virtual_machine::{
         args::{arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator},
         Instruction,
     },
-    program_builder::{Buildable, UnresolvedInstruction},
+    program_builder::Buildable,
     register::Register,
 };
 
@@ -280,7 +280,10 @@ impl Buildable for Expr {
                 })?,
                 Literal::NumberFloat(_) => todo!("Floats are not supported yet"),
                 Literal::String(_) => todo!("Strings are not supported yet"),
-                Literal::Bool(_) => todo!("Bools are not supported yet"),
+                Literal::Bool(val) => builder.add_instruction(Instruction::Imm {
+                    dst: Register::RS1,
+                    value: Arg20(if val { 1 } else { 0 }),
+                })?,
             },
             Expr::StructLiteral(_, _) => todo!(),
             Expr::Variable(_) => todo!(),
