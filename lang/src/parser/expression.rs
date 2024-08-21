@@ -295,12 +295,14 @@ impl Buildable for Expr {
                 else_block,
             } => {
                 let if_label = format!("if_{}", if_block.0.span);
+                let if_end_label = format!("if_end_{}", if_block.0.span);
+
                 if_block.0.build(builder)?; // Bool value in RS1
 
                 builder.add_unresolved(
                     Instruction::Jump {
-                        cond: JumpCondition::Positive, // If the comparision was true (e.a RS1 > 0)
-                        offset: Arg20(0),              // What needs to go in here???
+                        cond: JumpCondition::NotZero, // If the comparision was true (e.a RS1 > 0)
+                        offset: Arg20(0),             // What needs to go in here???
                     },
                     if_label.clone(),
                 );
@@ -311,33 +313,60 @@ impl Buildable for Expr {
 
                     builder.add_unresolved(
                         Instruction::Jump {
-                            cond: JumpCondition::Positive, // If the comparision was true (e.a RS1 > 0)
-                            offset: Arg20(0),              // What needs to go in here???
+                            cond: JumpCondition::NotZero, // If the comparision was true (e.a RS1 > 0)
+                            offset: Arg20(0),             // What needs to go in here???
                         },
                         else_if_label.clone(),
                     );
+                }
 
-                    builder.add_label(else_if_label);
-                    else_if_block.1.build(builder)?;
+                let end = if let Some(else_block) = else_block {
+                    let else_label = format!("else_{}", else_block.span);
+                    else_label.clone()
+                } else {
+                    if_end_label.clone()
+                };
+
+                builder.add_unresolved(
+                    Instruction::Jump {
+                        cond: JumpCondition::Always,
+                        offset: Arg20(0),
+                    },
+                    end,
+                );
+
+                let build_body =
+                    |builder: &mut virtual_machine::program_builder::ProgramBuilder,
+                     body: &Box<Spanned<Expr>>,
+                     label: String|
+                     -> Result<(), ALError> {
+                        builder.add_label(label);
+                        body.build(builder)?;
+                        builder.add_unresolved(
+                            Instruction::Jump {
+                                cond: JumpCondition::Always,
+                                offset: Arg20(0),
+                            },
+                            if_end_label.clone(),
+                        );
+
+                        Ok(())
+                    };
+
+                // if block
+                build_body(builder, &if_block.1, if_label)?;
+
+                for else_if_block in else_if_blocks {
+                    let else_if_label = format!("else_if_{}", else_if_block.0.span);
+                    build_body(builder, &else_if_block.1, else_if_label)?;
                 }
 
                 if let Some(else_block) = else_block {
                     let else_label = format!("else_{}", else_block.span);
-                    builder.add_unresolved(
-                        Instruction::Jump {
-                            cond: JumpCondition::Always,
-                            offset: Arg20(0),
-                        },
-                        else_label.clone(),
-                    );
-
-                    builder.add_label(else_label);
-                    else_block.build(builder)?;
+                    build_body(builder, &else_block, else_label)?;
                 }
 
-                // if block
-                builder.add_label(if_label);
-                if_block.1.build(builder)?;
+                builder.add_label(if_end_label);
             }
             Expr::Loop(_) => todo!(),
             Expr::Block(statements, return_expr) => {
