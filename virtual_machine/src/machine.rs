@@ -16,6 +16,7 @@ pub struct Machine {
     registers: RegisterStore,
 
     halt: bool,
+    cycle_changed_ip: bool,
 }
 
 impl Machine {
@@ -27,6 +28,7 @@ impl Machine {
             memory: Box::new(vec![0u32; 1024 * 1024 * 4]),
             registers: RegisterStore::default(),
             halt: false,
+            cycle_changed_ip: false,
         };
         res.reset_registers();
         res
@@ -65,9 +67,13 @@ impl Machine {
         let instruction_pointer = self.registers.get(Register::IP);
         let instruction = self.memory.read(instruction_pointer)?;
 
-        self.registers.set(Register::IP, instruction_pointer + 1);
+        self.cycle_changed_ip = false;
 
         self.run_instruction(&instruction)?;
+
+        if !self.cycle_changed_ip {
+            self.registers.set(Register::IP, instruction_pointer + 1);
+        }
 
         Ok(())
     }
@@ -109,6 +115,7 @@ impl Machine {
                         Register::IP,
                         (ip as i32 + sign_extend(offset.0, 20) as i32) as u32,
                     );
+                    self.cycle_changed_ip = true;
                 }
             }
             Instruction::Compare { lhs, rhs } => {
@@ -116,7 +123,7 @@ impl Machine {
                 let rhs = rhs.get_val(self);
 
                 // Store the result in RS1 to update the condition flags
-                self.registers.set(Register::RSC, lhs - rhs);
+                self.registers.set(Register::RSC, lhs.wrapping_sub(rhs));
                 self.registers.update_condition(Register::RSC);
             }
             Instruction::Push(reg) => {

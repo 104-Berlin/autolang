@@ -19,14 +19,32 @@ use virtual_machine::{
 fn main() {
     let mut args = env::args();
     args.next(); // Skip exec path
-    let Some(input_file) = args.next() else {
+    let mut step_mode = false;
+    let mut input_file = None;
+
+    for input in args {
+        println!("Arg {}", input);
+        if input.starts_with('-') {
+            match input.as_str() {
+                "-s" | "--step" => step_mode = true,
+                _ => {
+                    eprintln!("Unknown flag: {}", input);
+                    return;
+                }
+            }
+        } else {
+            input_file = Some(input);
+        }
+    }
+
+    let Some(input_file) = input_file else {
         eprintln!("You must provide a file to run");
         return;
     };
 
     let file = OpenOptions::new().read(true).open(&input_file).unwrap();
 
-    let execution = compile(FileInputStream::new(file));
+    let execution = compile(FileInputStream::new(file), step_mode);
 
     match execution {
         Ok(res) => {
@@ -43,7 +61,10 @@ fn main() {
     }
 }
 
-fn compile(input: impl InputStream<Output = char> + 'static) -> Result<Machine, ALError> {
+fn compile(
+    input: impl InputStream<Output = char> + 'static,
+    step_mode: bool,
+) -> Result<Machine, ALError> {
     let module = Parser::new(input).parse_module()?;
     let program = Compiler::default().compile(&module)?;
     OpenOptions::new()
@@ -60,7 +81,7 @@ fn compile(input: impl InputStream<Output = char> + 'static) -> Result<Machine, 
                 .as_bytes(),
         )
         .unwrap();
-    Ok(Machine::new().load_program(&program)?.run(false)?)
+    Ok(Machine::new().load_program(&program)?.run(step_mode)?)
 }
 
 /* use lang::{execution::ExecutionContext, input_stream::FileInputStream, parser::Parser};
