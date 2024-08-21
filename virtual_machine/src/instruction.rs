@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
 use args::{
-    arg20::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral, InstructionArg,
+    arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
+    register_or_literal::RegisterOrLiteral, InstructionArg,
 };
 use reader::InstructionReader;
 use writer::InstructionWriter;
@@ -20,7 +21,14 @@ pub enum Instruction {
     Nop,
     Load {
         dst: Register,
-        addr: Arg20,
+        offset: Arg20,
+    },
+    // This loads a bool from the condition register
+    // This seems to be a bit of waste, but wanted to get it in for now
+    // Maybe it works fine
+    LoadBool {
+        dst: Register,
+        op: LogicalOperator,
     },
     Copy {
         dst: Register,
@@ -64,7 +72,11 @@ impl InstructionArg for Instruction {
             OpCode::Nop => Ok(Self::Nop),
             OpCode::Load => Ok(Self::Load {
                 dst: reader.read()?,
-                addr: reader.read()?,
+                offset: reader.read()?,
+            }),
+            OpCode::LoadBool => Ok(Self::LoadBool {
+                dst: reader.read()?,
+                op: reader.read()?,
             }),
             OpCode::Imm => Ok(Self::Imm {
                 dst: reader.read()?,
@@ -97,6 +109,7 @@ impl InstructionArg for Instruction {
             Self::Halt => OpCode::Halt,
             Self::Nop => OpCode::Nop,
             Self::Load { .. } => OpCode::Load,
+            Self::LoadBool { .. } => OpCode::LoadBool,
             Self::Imm { .. } => OpCode::Imm,
             Self::Copy { .. } => OpCode::Copy,
             Self::Add { .. } => OpCode::Add,
@@ -109,8 +122,11 @@ impl InstructionArg for Instruction {
         match data {
             Self::Halt => (),
             Self::Nop => (),
-            Self::Load { dst, addr } => {
-                writer = writer.write(dst).write(addr);
+            Self::Load { dst, offset } => {
+                writer = writer.write(dst).write(offset);
+            }
+            Self::LoadBool { dst, op } => {
+                writer = writer.write(dst).write(op);
             }
             Self::Imm { dst, value } => {
                 writer = writer.write(dst).write(value);
@@ -146,7 +162,8 @@ impl Display for Instruction {
         match self {
             Self::Halt => write!(f, "Halt"),
             Self::Nop => write!(f, "Nop"),
-            Self::Load { dst, addr } => write!(f, "Load {}, {}", dst, addr.0),
+            Self::Load { dst, offset } => write!(f, "Load {}, {}", dst, offset.0),
+            Self::LoadBool { dst, op } => write!(f, "LoadBool {}, {:?}", dst, op),
             Self::Imm { dst, value } => write!(f, "Imm {}, {}", dst, value.0),
             Self::Copy { dst, src } => write!(f, "Copy {} => {}", dst, src),
             Self::Add { dst, lhs, rhs } => write!(f, "Add {}, {}, {}", dst, lhs, rhs),

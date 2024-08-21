@@ -1,11 +1,11 @@
-use std::{fmt::Display, ops::Deref};
+use std::fmt::Display;
 
 use virtual_machine::{
     instruction::{
-        args::{arg20::Arg20, register_or_literal::RegisterOrLiteral},
+        args::{arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator},
         Instruction,
     },
-    program_builder::Buildable,
+    program_builder::{Buildable, UnresolvedInstruction},
     register::Register,
 };
 
@@ -177,12 +177,14 @@ impl Buildable for Expr {
             Expr::Dot { lhs, rhs } => todo!(),
             Expr::FunctionCall(_, _) => todo!(),
             Expr::Binary(bin) => {
+                // Load RHS into RS1 and LHS into RS2
                 bin.value.lhs.build(builder)?;
                 builder.add_instruction(Instruction::Copy {
                     dst: Register::RS2,
                     src: Register::RS1,
                 })?;
                 bin.value.rhs.build(builder)?;
+
                 match *bin.op {
                     BinaryOperator::Add => builder.add_instruction(Instruction::Add {
                         dst: Register::RS1,
@@ -196,12 +198,78 @@ impl Buildable for Expr {
                     BinaryOperator::Divide => todo!(),
                     BinaryOperator::And => todo!(),
                     BinaryOperator::Or => todo!(),
-                    BinaryOperator::Equal => todo!(),
-                    BinaryOperator::NotEqual => todo!(),
-                    BinaryOperator::LessThan => todo!(),
-                    BinaryOperator::LessThanOrEqual => todo!(),
-                    BinaryOperator::GreaterThan => todo!(),
-                    BinaryOperator::GreaterThanOrEqual => todo!(),
+                    BinaryOperator::Equal => {
+                        // Make comparison
+                        builder.add_instruction(Instruction::Compare {
+                            lhs: Register::RS2.into(),
+                            rhs: Register::RS1.into(),
+                        })?;
+                        // Load the result of the comparison into RS1
+                        builder.add_instruction(Instruction::LoadBool {
+                            dst: Register::RS1,
+                            op: LogicalOperator::EQ,
+                        })?;
+                    }
+                    BinaryOperator::NotEqual => {
+                        // Make comparison
+                        builder.add_instruction(Instruction::Compare {
+                            lhs: Register::RS2.into(),
+                            rhs: Register::RS1.into(),
+                        })?;
+                        // Load the result of the comparison into RS1
+                        builder.add_instruction(Instruction::LoadBool {
+                            dst: Register::RS1,
+                            op: LogicalOperator::NE,
+                        })?;
+                    }
+                    BinaryOperator::LessThan => {
+                        // Make comparison
+                        builder.add_instruction(Instruction::Compare {
+                            lhs: Register::RS2.into(),
+                            rhs: Register::RS1.into(),
+                        })?;
+                        // Load the result of the comparison into RS1
+                        builder.add_instruction(Instruction::LoadBool {
+                            dst: Register::RS1,
+                            op: LogicalOperator::LT,
+                        })?;
+                    }
+                    BinaryOperator::LessThanOrEqual => {
+                        // Make comparison
+                        builder.add_instruction(Instruction::Compare {
+                            lhs: Register::RS2.into(),
+                            rhs: Register::RS1.into(),
+                        })?;
+                        // Load the result of the comparison into RS1
+                        builder.add_instruction(Instruction::LoadBool {
+                            dst: Register::RS1,
+                            op: LogicalOperator::LE,
+                        })?;
+                    }
+                    BinaryOperator::GreaterThan => {
+                        // Make comparison
+                        builder.add_instruction(Instruction::Compare {
+                            lhs: Register::RS2.into(),
+                            rhs: Register::RS1.into(),
+                        })?;
+                        // Load the result of the comparison into RS1
+                        builder.add_instruction(Instruction::LoadBool {
+                            dst: Register::RS1,
+                            op: LogicalOperator::GT,
+                        })?;
+                    }
+                    BinaryOperator::GreaterThanOrEqual => {
+                        // Make comparison
+                        builder.add_instruction(Instruction::Compare {
+                            lhs: Register::RS2.into(),
+                            rhs: Register::RS1.into(),
+                        })?;
+                        // Load the result of the comparison into RS1
+                        builder.add_instruction(Instruction::LoadBool {
+                            dst: Register::RS1,
+                            op: LogicalOperator::GE,
+                        })?;
+                    }
                 };
             }
             Expr::Literal(val) => match **val {
@@ -225,7 +293,52 @@ impl Buildable for Expr {
                 if_block,
                 else_if_blocks,
                 else_block,
-            } => todo!(),
+            } => {
+                let if_label = format!("if_{}", if_block.0.span);
+                if_block.0.build(builder)?; // Bool value in RS1
+
+                builder.add_unresolved(
+                    Instruction::Jump {
+                        cond: JumpCondition::Positive, // If the comparision was true (e.a RS1 > 0)
+                        offset: Arg20(0),              // What needs to go in here???
+                    },
+                    if_label.clone(),
+                );
+
+                for else_if_block in else_if_blocks {
+                    let else_if_label = format!("else_if_{}", else_if_block.0.span);
+                    else_if_block.0.build(builder)?; // Bool value in RS1
+
+                    builder.add_unresolved(
+                        Instruction::Jump {
+                            cond: JumpCondition::Positive, // If the comparision was true (e.a RS1 > 0)
+                            offset: Arg20(0),              // What needs to go in here???
+                        },
+                        else_if_label.clone(),
+                    );
+
+                    builder.add_label(else_if_label);
+                    else_if_block.1.build(builder)?;
+                }
+
+                if let Some(else_block) = else_block {
+                    let else_label = format!("else_{}", else_block.span);
+                    builder.add_unresolved(
+                        Instruction::Jump {
+                            cond: JumpCondition::Always,
+                            offset: Arg20(0),
+                        },
+                        else_label.clone(),
+                    );
+
+                    builder.add_label(else_label);
+                    else_block.build(builder)?;
+                }
+
+                // if block
+                builder.add_label(if_label);
+                if_block.1.build(builder)?;
+            }
             Expr::Loop(_) => todo!(),
             Expr::Block(statements, return_expr) => {
                 for statement in statements {

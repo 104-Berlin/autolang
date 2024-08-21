@@ -1,14 +1,6 @@
-use source_span::Span;
-use virtual_machine::{
-    instruction::writer::InstructionWriter,
-    program_builder::{Buildable, ProgramBuilder},
-};
+use virtual_machine::program_builder::{Buildable, ProgramBuilder};
 
-use crate::{
-    error::{ALError, ALResult},
-    module::Module,
-    spanned::Spanned,
-};
+use crate::{error::ALError, module::Module};
 
 pub struct Context;
 
@@ -34,6 +26,6 @@ impl Compiler {
     pub fn compile(&mut self, module: &Module) -> Result<[u32; 1024], ALError> {
         let mut builder = ProgramBuilder::new();
         module.build(&mut builder)?;
-        Ok(builder.finish())
+        Ok(builder.finish()?)
     }
 }

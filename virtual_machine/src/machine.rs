@@ -1,4 +1,5 @@
 use crate::error::VMResult;
+use crate::instruction::args::logical_operator::LogicalOperator;
 use crate::instruction::{
     args::{
         arg20::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral,
@@ -78,7 +79,8 @@ impl Machine {
         match instr {
             Instruction::Halt => self.halt = true,
             Instruction::Nop => (),
-            Instruction::Load { dst, addr } => self.load(dst, addr)?,
+            Instruction::Load { dst, offset } => self.load(dst, offset)?,
+            Instruction::LoadBool { dst, op } => self.load_bool(dst, op)?,
             Instruction::Imm { dst, value } => self.imm(dst, value),
             Instruction::Copy { dst, src } => {
                 self.registers.set(dst, self.registers.get(src));
@@ -147,6 +149,29 @@ impl Machine {
         let addr = (ip as u64 + sign_extend(offset.0, 20) as u64) as u32;
         let addr = self.memory.read(addr)?;
         self.registers.set(dst, addr);
+        self.registers.update_condition(dst);
+        Ok(())
+    }
+
+    fn load_bool(&mut self, dst: Register, operator: LogicalOperator) -> VMResult<()> {
+        let cond_flags = self.registers.get(Register::Cond) as u8;
+        let cond_flags: ConditionFlag = cond_flags
+            .try_into()
+            .expect("There is a wrong value in the condition register!");
+        match (cond_flags, operator) {
+            (ConditionFlag::Zero, LogicalOperator::EQ)
+            | (ConditionFlag::Positive, LogicalOperator::NE)
+            | (ConditionFlag::Negative, LogicalOperator::NE)
+            | (ConditionFlag::Negative, LogicalOperator::LT)
+            | (ConditionFlag::Positive, LogicalOperator::GT)
+            | (ConditionFlag::Negative, LogicalOperator::LE)
+            | (ConditionFlag::Positive, LogicalOperator::GE) => {
+                self.registers.set(dst, 1);
+            }
+            _ => {
+                self.registers.set(dst, 0);
+            }
+        }
         self.registers.update_condition(dst);
         Ok(())
     }

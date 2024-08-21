@@ -18,7 +18,7 @@ fn main() -> VMResult<()> {
     prog_stack(&mut builder)?;
 
     Machine::new()
-        .load_program(&builder.finish())?
+        .load_program(&builder.finish()?)?
         .run(step_mode)?;
     Ok(())
 }
@@ -29,7 +29,7 @@ fn prog_test(builder: &mut ProgramBuilder) -> VMResult<()> {
 
     builder.add_instruction(Instruction::Load {
         dst: Register::RA1,
-        addr: Arg20(-2i32 as u32),
+        offset: Arg20(-2i32 as u32),
     })?;
     builder.add_instruction(Instruction::Imm {
         dst: Register::RA2,

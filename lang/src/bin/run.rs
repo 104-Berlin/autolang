@@ -11,21 +11,20 @@ use lang::{
     parser::Parser,
 };
 use utf8_chars::BufReadCharsExt;
-use virtual_machine::machine::Machine;
+use virtual_machine::{
+    instruction::{args::InstructionArg, Instruction},
+    machine::Machine,
+};
 
 fn main() {
     let mut args = env::args();
     args.next(); // Skip exec path
     let Some(input_file) = args.next() else {
-        eprintln!("You musst provide a file to run");
+        eprintln!("You must provide a file to run");
         return;
     };
 
     let file = OpenOptions::new().read(true).open(&input_file).unwrap();
-    /*let mut input_stream = Tokenizer::new(FileInputStream::new(file));
-        for tok in input_stream {
-        println!("{:?}", tok);
-    }*/
 
     let execution = compile(FileInputStream::new(file));
 
@@ -52,12 +51,13 @@ fn compile(input: impl InputStream<Output = char> + 'static) -> Result<Machine, 
         .create(true)
         .open("out.bin")
         .unwrap()
-        .write_all(
+        .write(
             &program
                 .iter()
-                .map(|i| i.to_be_bytes())
-                .flatten()
-                .collect::<Vec<_>>(),
+                .map(|i| format!("{}", Instruction::match_from_bytes(*i).unwrap()))
+                .collect::<Vec<String>>()
+                .join("\n")
+                .as_bytes(),
         )
         .unwrap();
     Ok(Machine::new().load_program(&program)?.run(false)?)
@@ -71,7 +71,7 @@ fn main() {
     let mut args = env::args();
     args.next(); // Skip exec path
     let Some(input_file) = args.next() else {
-        eprintln!("You musst provide a file to run");
+        eprintln!("You must provide a file to run");
         return;
     };
 
