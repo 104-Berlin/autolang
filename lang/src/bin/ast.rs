@@ -1,8 +1,9 @@
-use std::{env, fs::OpenOptions, io::BufReader};
+use std::{
+    env,
+    fs::{self},
+};
 
-use lang::{input_stream::FileInputStream, parser::Parser};
-
-use utf8_chars::BufReadCharsExt;
+use lang::parser::Parser;
 
 fn main() {
     let mut args = env::args();
@@ -12,21 +13,18 @@ fn main() {
         return;
     };
 
-    match Parser::new(FileInputStream::new(
-        OpenOptions::new().read(true).open(&input_file).unwrap(),
-    ))
-    .parse_module()
-    {
+    let input = fs::read_to_string(&input_file).unwrap();
+
+    let parsed = Parser::new(input.as_str()).parse_module();
+
+    match parsed {
         Ok(module) => {
             for func in module.value.functions() {
                 println!("{}", func.value);
             }
         }
         Err(e) => {
-            let file = OpenOptions::new().read(true).open(&input_file).unwrap();
-            let mut reader = BufReader::new(file);
-
-            e.show_error(reader.chars().map(|c| c.map_err(|_| ())));
+            println!("{:?}", e.with_source_code(input.clone()));
         }
     }
 }

@@ -1,6 +1,8 @@
-use lang::{execution::ExecutionContext, input_stream::FileInputStream, parser::Parser};
-use std::{env, fs::OpenOptions, io::BufReader};
-use utf8_chars::BufReadCharsExt;
+use lang::{execution::ExecutionContext, parser::Parser};
+use std::{
+    env,
+    fs::{self},
+};
 
 fn main() {
     let mut args = env::args();
@@ -10,13 +12,13 @@ fn main() {
         return;
     };
 
-    let file = OpenOptions::new().read(true).open(&input_file).unwrap();
+    let input = fs::read_to_string(&input_file).expect("Reading source file");
     /*let mut input_stream = Tokenizer::new(FileInputStream::new(file));
         for tok in input_stream {
         println!("{:?}", tok);
     }*/
 
-    let execution = Parser::new(FileInputStream::new(file))
+    let execution = Parser::new(input.as_str())
         .parse_module()
         .and_then(|module| {
             let mut ctx = ExecutionContext::new(&module);
@@ -26,10 +28,7 @@ fn main() {
     match execution {
         Ok(_) => {}
         Err(e) => {
-            let file = OpenOptions::new().read(true).open(&input_file).unwrap();
-            let mut reader = BufReader::new(file);
-
-            e.show_error(reader.chars().map(|c| c.map_err(|_| ())));
+            eprintln!("{:?}", e.with_source_code(input));
         }
     };
 }

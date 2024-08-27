@@ -1,11 +1,10 @@
-use std::{env, fs::OpenOptions, io::BufReader};
-
-use lang::{input_stream::FileInputStream, tokenizer::Tokenizer};
-use source_span::{
-    fmt::{Formatter, Style},
-    Position, Span, DEFAULT_METRICS,
+use std::{
+    env,
+    fs::{self},
 };
-use utf8_chars::BufReadCharsExt;
+
+use lang::tokenizer::Tokenizer;
+use miette::{diagnostic, LabeledSpan};
 
 fn main() {
     let mut args = env::args();
@@ -15,25 +14,12 @@ fn main() {
         return;
     };
 
-    let tokenizer = Tokenizer::new(FileInputStream::new(
-        OpenOptions::new().read(true).open(&input_file).unwrap(),
-    ));
+    let input = fs::read_to_string(&input_file).expect("Reading source file");
 
-    let mut formatter = Formatter::new();
-    for token in tokenizer {
-        formatter.add(token.span, Some(format!("{:?}", token.value)), Style::Note);
-    }
+    let tokenizer = Tokenizer::new(input.as_str())
+        .map(|tok| LabeledSpan::at(tok.span, format!("{}", tok.value)))
+        .collect::<Vec<_>>();
 
-    let mut reader = BufReader::new(OpenOptions::new().read(true).open(&input_file).unwrap());
-
-    let full_span = Span::new(
-        Position::default(),
-        Position::new(usize::MAX - 1, usize::MAX - 1),
-        Position::end(),
-    );
-
-    let fmt = formatter
-        .render(reader.chars(), full_span, &DEFAULT_METRICS)
-        .unwrap();
-    println!("{}", fmt);
+    let report: miette::Report = diagnostic!(labels = tokenizer, "Tokenized input").into();
+    eprintln!("{:?}", report.with_source_code(input));
 }

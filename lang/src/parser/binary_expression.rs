@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
+use miette::{miette, Error, LabeledSpan};
+
 use crate::{
-    error::{Error, ErrorKind},
     spanned::Spanned,
     tokenizer::{identifier::Identifier, token::Token},
 };
@@ -81,7 +82,10 @@ impl TryFrom<Spanned<Token>> for BinaryOperator {
                 Ok(BinaryOperator::GreaterThanOrEqual)
             }
             Token::Identifier(Identifier::Assignment) => Ok(BinaryOperator::Assign),
-            _ => Err(Error::new(span, ErrorKind::InvalidOperator)),
+            _ => Err(miette!(
+                labels = [LabeledSpan::at(span, "here")],
+                "Invalid binary operator"
+            )),
         }
     }
 }
