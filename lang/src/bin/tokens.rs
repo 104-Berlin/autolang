@@ -14,7 +14,7 @@ fn main() {
         return;
     };
 
-    let input = fs::read_to_string(&input_file).expect("Reading source file");
+    let input = fs::read_to_string(input_file).expect("Reading source file");
 
     let tokenizer = Tokenizer::new(input.as_str())
         .map(|tok| LabeledSpan::at(tok.span, format!("{}", tok.value)))

@@ -76,7 +76,7 @@ impl Parser<'_> {
                 _ => {
                     return Err(UnexpectedToken {
                         found: value,
-                        span: span,
+                        span,
                         expected: "Expected function or struct".into(),
                     })
                     .wrap_err("Parsing module");

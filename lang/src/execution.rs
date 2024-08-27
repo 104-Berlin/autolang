@@ -334,7 +334,7 @@ impl<'a> ExecutionContext<'a> {
                             found: value.type_id.clone(),
                             expected: type_id.value.clone(),
                             reason: TypeMismatchReason::VariableAssignment,
-                            span: span,
+                            span,
                         }
                         .into());
                     }

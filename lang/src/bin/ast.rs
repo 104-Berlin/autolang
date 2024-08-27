@@ -13,7 +13,7 @@ fn main() {
         return;
     };
 
-    let input = fs::read_to_string(&input_file).unwrap();
+    let input = fs::read_to_string(input_file).unwrap();
 
     let parsed = Parser::new(input.as_str()).parse_module();
 
