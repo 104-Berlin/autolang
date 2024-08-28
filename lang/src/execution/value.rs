@@ -3,14 +3,17 @@ use std::{
     fmt::{Debug, Display},
 };
 
+use miette::{miette, Context, LabeledSpan};
+
 use crate::{
-    error::{ALError, ALResult, ErrorKind, TypeMismatchReason},
+    error::{TypeMismatch, TypeMismatchReason},
     parser::{binary_expression::BinaryOperator, structs::StructValue, type_def::TypeID},
     spanned::Spanned,
+    ALResult,
 };
 
 pub struct Value {
-    pub value: Box<dyn Any>,
+    pub value: Box<dyn Any + Send + Sync>,
     pub type_id: TypeID,
 }
 
@@ -111,12 +114,13 @@ impl Value {
             }
             Ok(Spanned::new((), other.span))
         } else {
-            Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::VariableAssignment,
-            ))
+            Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::VariableAssignment,
+                span: other.span,
+            })
+            .wrap_err("Setting value")
         }
     }
 
@@ -164,30 +168,34 @@ impl Value {
                 self,
                 other.value.as_string().unwrap()
             ))),
-            (TypeID::Bool, _) => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
-            (_, TypeID::Bool) => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
+            (TypeID::Bool, _) | (_, TypeID::Bool) => Err(miette!(
+                labels = vec![LabeledSpan::at(other.span, "here")],
+                "Invalid operator for boolean values"
+            )),
             (TypeID::Void, _) => Ok(Value::new_void()),
             (_, TypeID::Void) => Ok(self.clone()),
             (TypeID::User(_), _) => todo!(),
             (_, TypeID::User(_)) => todo!(),
-            (_, _) => Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::BinaryOperation(BinaryOperator::Add),
-            )),
+            (_, _) => Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::BinaryOperation(BinaryOperator::Add),
+                span: other.span,
+            })
+            .wrap_err("Adding values"),
         }
         .map(|v| Spanned::new(v, other.span))
     }
 
     pub fn sub(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::BinaryOperation(BinaryOperator::Substract),
-            ));
+            return Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::BinaryOperation(BinaryOperator::Substract),
+                span: other.span,
+            })
+            .wrap_err("Subtracting values");
         }
 
         match self.type_id {
@@ -198,7 +206,10 @@ impl Value {
                 self.as_float().unwrap() - other.value.as_float().unwrap(),
             )),
             TypeID::String => todo!(),
-            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(miette!(
+                labels = vec![LabeledSpan::at(other.span, "here")],
+                "Invalid operator for boolean values"
+            )),
             TypeID::Void => todo!(),
             TypeID::User(_) => todo!(),
         }
@@ -207,12 +218,13 @@ impl Value {
 
     pub fn mul(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::BinaryOperation(BinaryOperator::Multiply),
-            ));
+            return Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::BinaryOperation(BinaryOperator::Multiply),
+                span: other.span,
+            })
+            .wrap_err("Multiplying values");
         }
 
         match self.type_id {
@@ -223,7 +235,10 @@ impl Value {
                 self.as_float().unwrap() * other.value.as_float().unwrap(),
             )),
             TypeID::String => todo!(),
-            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(miette!(
+                labels = vec![LabeledSpan::at(other.span, "here")],
+                "Invalid operator for boolean values"
+            )),
             TypeID::Void => todo!(),
             TypeID::User(_) => todo!(),
         }
@@ -232,12 +247,13 @@ impl Value {
 
     pub fn div(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::BinaryOperation(BinaryOperator::Divide),
-            ));
+            return Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::BinaryOperation(BinaryOperator::Divide),
+                span: other.span,
+            })
+            .wrap_err("Dividing values");
         }
 
         match self.type_id {
@@ -248,7 +264,10 @@ impl Value {
                 self.as_float().unwrap() / other.value.as_float().unwrap(),
             )),
             TypeID::String => todo!(),
-            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(miette!(
+                labels = vec![LabeledSpan::at(other.span, "here")],
+                "Invalid operator for boolean values"
+            )),
             TypeID::Void => todo!(),
             TypeID::User(_) => todo!(),
         }
@@ -258,12 +277,13 @@ impl Value {
     // Logical operations
     pub fn and(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != TypeID::Bool || other.value.type_id != TypeID::Bool {
-            return Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::BinaryOperation(BinaryOperator::And),
-            ));
+            return Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::BinaryOperation(BinaryOperator::And),
+                span: other.span,
+            })
+            .wrap_err("And operation");
         }
 
         Ok(Self::new_bool(
@@ -274,12 +294,13 @@ impl Value {
 
     pub fn or(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != TypeID::Bool || other.value.type_id != TypeID::Bool {
-            return Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::BinaryOperation(BinaryOperator::Or),
-            ));
+            return Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::BinaryOperation(BinaryOperator::Or),
+                span: other.span,
+            })
+            .wrap_err("Or operation");
         }
 
         Ok(Self::new_bool(
@@ -294,12 +315,13 @@ impl Value {
     /// This will always return a boolean value or an error if the types dont match.
     pub fn eq(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::BinaryOperation(BinaryOperator::Equal),
-            ));
+            return Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::BinaryOperation(BinaryOperator::Equal),
+                span: other.span,
+            })
+            .wrap_err("Equal operation");
         }
 
         match self.type_id {
@@ -330,12 +352,13 @@ impl Value {
 
     pub fn lt(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::BinaryOperation(BinaryOperator::LessThan),
-            ));
+            return Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::BinaryOperation(BinaryOperator::LessThan),
+                span: other.span,
+            })
+            .wrap_err("Less than operation");
         }
 
         match self.type_id {
@@ -348,7 +371,10 @@ impl Value {
             TypeID::String => Ok(Self::new_bool(
                 self.as_string().unwrap() < other.value.as_string().unwrap(),
             )),
-            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(miette!(
+                labels = vec![LabeledSpan::at(other.span, "here")],
+                "Invalid operator for boolean values"
+            )),
             TypeID::Void => Ok(Self::new_bool(true)),
             TypeID::User(_) => todo!(),
         }
@@ -357,12 +383,13 @@ impl Value {
 
     pub fn gt(&self, other: &Spanned<Self>) -> ALResult<Self> {
         if self.type_id != other.value.type_id {
-            return Err(ALError::new_type_mismatch(
-                other.span,
-                self.type_id.clone(),
-                other.value.type_id.clone(),
-                TypeMismatchReason::BinaryOperation(BinaryOperator::GreaterThan),
-            ));
+            return Err(TypeMismatch {
+                found: other.value.type_id.clone(),
+                expected: self.type_id.clone(),
+                reason: TypeMismatchReason::BinaryOperation(BinaryOperator::GreaterThan),
+                span: other.span,
+            })
+            .wrap_err("Greater than operation");
         }
 
         match self.type_id {
@@ -375,7 +402,10 @@ impl Value {
             TypeID::String => Ok(Self::new_bool(
                 self.as_string().unwrap() > other.value.as_string().unwrap(),
             )),
-            TypeID::Bool => Err(ALError::new(other.span, ErrorKind::InvalidOperator)),
+            TypeID::Bool => Err(miette!(
+                labels = vec![LabeledSpan::at(other.span, "here")],
+                "Invalid operator for boolean values"
+            )),
             TypeID::Void => Ok(Self::new_bool(true)),
             TypeID::User(_) => todo!(),
         }

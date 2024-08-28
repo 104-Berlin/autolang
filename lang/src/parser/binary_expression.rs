@@ -1,9 +1,9 @@
 use std::fmt::Display;
 
+use miette::{miette, Error, LabeledSpan};
 use virtual_machine::program_builder::{Buildable, ProgramBuilder};
 
 use crate::{
-    error::{ALError, ErrorKind},
     spanned::Spanned,
     tokenizer::{identifier::Identifier, token::Token},
 };
@@ -47,7 +47,7 @@ impl BinaryExpression {
 }
 
 impl Buildable for BinaryExpression {
-    type Error = ALError;
+    type Error = Error;
 
     fn build(&self, _builder: &mut ProgramBuilder) -> Result<(), Self::Error> {
         unimplemented!()
@@ -72,7 +72,7 @@ impl BinaryOperator {
 }
 
 impl TryFrom<Spanned<Token>> for BinaryOperator {
-    type Error = ALError;
+    type Error = Error;
 
     fn try_from(Spanned::<Token> { value, span }: Spanned<Token>) -> Result<Self, Self::Error> {
         match value {
@@ -91,13 +91,16 @@ impl TryFrom<Spanned<Token>> for BinaryOperator {
                 Ok(BinaryOperator::GreaterThanOrEqual)
             }
             Token::Identifier(Identifier::Assignment) => Ok(BinaryOperator::Assign),
-            _ => Err(ALError::new(span, ErrorKind::InvalidOperator)),
+            _ => Err(miette!(
+                labels = [LabeledSpan::at(span, "here")],
+                "Invalid binary operator"
+            )),
         }
     }
 }
 
 impl TryFrom<Spanned<Token>> for Spanned<BinaryOperator> {
-    type Error = ALError;
+    type Error = Error;
 
     fn try_from(token: Spanned<Token>) -> Result<Self, Self::Error> {
         let span = token.span;

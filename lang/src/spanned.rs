@@ -1,15 +1,15 @@
 use std::ops::Deref;
 
-use source_span::Span;
+use miette::{SourceOffset, SourceSpan};
 
 #[derive(Clone, Debug)]
 pub struct Spanned<T> {
-    pub span: Span,
+    pub span: SourceSpan,
     pub value: T,
 }
 
 impl<T> Spanned<T> {
-    pub fn new(value: T, span: Span) -> Spanned<T> {
+    pub fn new(value: T, span: SourceSpan) -> Spanned<T> {
         Spanned { span, value }
     }
 
@@ -20,7 +20,7 @@ impl<T> Spanned<T> {
         }
     }
 
-    pub fn map_span(&self, f: impl FnOnce(Span) -> Span) -> Spanned<T>
+    pub fn map_span(&self, f: impl FnOnce(SourceSpan) -> SourceSpan) -> Spanned<T>
     where
         T: Clone,
     {
@@ -34,9 +34,26 @@ impl<T> Spanned<T> {
 impl<T> From<T> for Spanned<T> {
     fn from(value: T) -> Self {
         Spanned {
-            span: Span::default(),
+            span: SourceSpan::new(SourceOffset::from(0), 0),
             value,
         }
+    }
+}
+
+pub trait SpanExt {
+    fn union(&self, other: &Self) -> Self;
+    fn next(&self) -> Self;
+}
+
+impl SpanExt for SourceSpan {
+    fn union(&self, other: &Self) -> Self {
+        let start = self.offset().min(other.offset());
+        let end = (self.offset() + self.len()).max(other.offset() + other.len());
+        SourceSpan::new(start.into(), end - start)
+    }
+
+    fn next(&self) -> Self {
+        SourceSpan::new(SourceOffset::from(self.offset() + self.len()), 0)
     }
 }
 
