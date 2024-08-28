@@ -38,7 +38,7 @@ pub struct Parser<'a> {
     last_offset: usize,
 }
 
-impl Parser {
+impl<'a> Parser<'a> {
     /// Creates a new parser from an input stream.
     /// # Arguments
     /// * `input` - The input stream to parse.

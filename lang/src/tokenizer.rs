@@ -17,9 +17,7 @@ pub struct Tokenizer<'a> {
     offset: usize,
 }
 
-impl Tokenizer {
-    pub const METRICS: source_span::DefaultMetrics = DefaultMetrics::new();
-
+impl<'a> Tokenizer<'a> {
     /// Creates a new tokenizer with the given input stream.
     /// The input stream must yield characters.
     ///
