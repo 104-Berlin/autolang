@@ -77,7 +77,7 @@ fn compile<'a>(
                 .as_bytes(),
         )
         .unwrap();
-    Machine::new()
+    Machine::default()
         .load_program(&program)
         .into_diagnostic()
         .wrap_err("Loading Program")?
