@@ -176,82 +176,30 @@ impl Buildable for Expr {
         match self {
             Expr::Dot { .. } => todo!(),
             Expr::FunctionCall(_, _) => todo!(),
-            Expr::Binary(bin) => {
-                // Load RHS into RA1 and LHS into RA2
-                bin.value.lhs.build(builder)?;
-                builder.add_instruction(Instruction::Copy {
-                    dst: Register::RA2,
-                    src: Register::RA1,
-                })?;
-                bin.value.rhs.build(builder)?;
-
-                match *bin.op {
-                    BinaryOperator::Add => builder.add_instruction(Instruction::Add {
-                        dst: Register::RA1,
-                        lhs: Register::RA2.into(),
-                        rhs: Register::RA1.into(),
-                    })?,
-
-                    BinaryOperator::Assign => todo!(),
-                    BinaryOperator::Substract => todo!(),
-                    BinaryOperator::Multiply => todo!(),
-                    BinaryOperator::Divide => todo!(),
-                    BinaryOperator::And => todo!(),
-                    BinaryOperator::Or => todo!(),
-                    BinaryOperator::Equal => Self::compile_compare(builder, LogicalOperator::EQ)?,
-                    BinaryOperator::NotEqual => {
-                        Self::compile_compare(builder, LogicalOperator::NE)?
-                    }
-                    BinaryOperator::LessThan => {
-                        Self::compile_compare(builder, LogicalOperator::LT)?
-                    }
-                    BinaryOperator::LessThanOrEqual => {
-                        Self::compile_compare(builder, LogicalOperator::LE)?
-                    }
-                    BinaryOperator::GreaterThan => {
-                        Self::compile_compare(builder, LogicalOperator::GT)?
-                    }
-                    BinaryOperator::GreaterThanOrEqual => {
-                        Self::compile_compare(builder, LogicalOperator::GE)?
-                    }
-                };
-            }
-            Expr::Literal(val) => match **val {
-                // This is very bad. We are currently converting a i64 to an u32 (Arg20)
-                Literal::NumberInt(val) => builder.add_instruction(Instruction::Imm {
-                    dst: Register::RA1,
-                    value: Arg20(val as u32),
-                })?,
-                Literal::NumberFloat(_) => todo!("Floats are not supported yet"),
-                Literal::String(_) => todo!("Strings are not supported yet"),
-                Literal::Bool(val) => builder.add_instruction(Instruction::Imm {
-                    dst: Register::RA1,
-                    value: Arg20(if val { 1 } else { 0 }),
-                })?,
-            },
+            Expr::Binary(bin) => Self::compile_binary_expression(builder, bin),
+            Expr::Literal(val) => Self::compile_literal(builder, val),
             Expr::StructLiteral(_, _) => todo!(),
             Expr::Variable(_) => todo!(),
             Expr::Assignment(_, _) => todo!(),
             Expr::Let(symbol, typ, assign) => {
                 assign.build(builder)?;
-                builder.add_instruction(Instruction::Push(Register::RA1.into()))?;
+                builder
+                    .build_instruction(Instruction::Push(Register::RA1.into()))
+                    .map_err(Into::into)
             }
             Expr::IfExpression {
                 if_block,
                 else_if_blocks,
                 else_block,
-            } => Self::compile_if_expr(builder, if_block, else_if_blocks, else_block.as_ref())?,
-            Expr::Loop(_) => todo!(),
-            Expr::Block(statements, return_expr) => Self::compile_block_expr(
-                builder,
-                statements,
-                return_expr.as_ref().map(|v| v.as_ref()),
-            )?,
+            } => Self::compile_if_expr(builder, if_block, else_if_blocks, else_block.as_ref()),
+            Expr::Loop(body) => Self::compile_loop(builder, body),
+            Expr::Block(statements, return_expr) => {
+                Self::compile_block_expr(builder, statements, return_expr.as_ref())
+            }
             Expr::Return(_) => todo!(),
             Expr::Break => todo!(),
             Expr::Continue => todo!(),
         }
-        Ok(())
     }
 }
 
@@ -259,7 +207,7 @@ impl Expr {
     fn compile_block_expr(
         builder: &mut ProgramBuilder,
         statements: &[Spanned<Expr>],
-        return_expr: Option<&Spanned<Expr>>,
+        return_expr: Option<&Box<Spanned<Expr>>>,
     ) -> Result<(), ALError> {
         for statement in statements {
             statement.build(builder)?;
@@ -281,7 +229,7 @@ impl Expr {
 
         if_block.0.build(builder)?; // Bool value in RA1
 
-        builder.add_unresolved(
+        builder.build_instruction_unresolved(
             Instruction::Jump {
                 cond: JumpCondition::NotZero, // If the comparision was true (e.a RA1 > 0)
                 offset: Arg20(0),             // What needs to go in here???
@@ -293,7 +241,7 @@ impl Expr {
             let else_if_label = format!("else_if_{}", else_if_block.0.span);
             else_if_block.0.build(builder)?; // Bool value in RA1
 
-            builder.add_unresolved(
+            builder.build_instruction_unresolved(
                 Instruction::Jump {
                     cond: JumpCondition::NotZero, // If the comparision was true (e.a RA1 > 0)
                     offset: Arg20(0),             // What needs to go in here???
@@ -309,7 +257,7 @@ impl Expr {
             if_end_label.clone()
         };
 
-        builder.add_unresolved(
+        builder.build_instruction_unresolved(
             Instruction::Jump {
                 cond: JumpCondition::Always,
                 offset: Arg20(0),
@@ -321,9 +269,9 @@ impl Expr {
                           body: &Box<Spanned<Expr>>,
                           label: String|
          -> Result<(), ALError> {
-            builder.add_label(label);
+            builder.insert_label(label);
             body.build(builder)?;
-            builder.add_unresolved(
+            builder.build_instruction_unresolved(
                 Instruction::Jump {
                     cond: JumpCondition::Always,
                     offset: Arg20(0),
@@ -347,7 +295,45 @@ impl Expr {
             build_body(builder, &else_block, else_label)?;
         }
 
-        builder.add_label(if_end_label);
+        builder.insert_label(if_end_label);
+        Ok(())
+    }
+
+    fn compile_binary_expression(
+        builder: &mut ProgramBuilder,
+        bin: &BinaryExpression,
+    ) -> Result<(), ALError> {
+        // Load RHS into RA1 and LHS into RA2
+        bin.lhs.build(builder)?;
+        builder.build_instruction(Instruction::Copy {
+            dst: Register::RA2,
+            src: Register::RA1,
+        })?;
+        bin.rhs.build(builder)?;
+
+        match *bin.op {
+            BinaryOperator::Add => builder.build_instruction(Instruction::Add {
+                dst: Register::RA1,
+                lhs: Register::RA2.into(),
+                rhs: Register::RA1.into(),
+            })?,
+
+            BinaryOperator::Assign => todo!(),
+            BinaryOperator::Substract => todo!(),
+            BinaryOperator::Multiply => todo!(),
+            BinaryOperator::Divide => todo!(),
+            BinaryOperator::And => todo!(),
+            BinaryOperator::Or => todo!(),
+            BinaryOperator::Equal => Self::compile_compare(builder, LogicalOperator::EQ)?,
+            BinaryOperator::NotEqual => Self::compile_compare(builder, LogicalOperator::NE)?,
+            BinaryOperator::LessThan => Self::compile_compare(builder, LogicalOperator::LT)?,
+            BinaryOperator::LessThanOrEqual => Self::compile_compare(builder, LogicalOperator::LE)?,
+            BinaryOperator::GreaterThan => Self::compile_compare(builder, LogicalOperator::GT)?,
+            BinaryOperator::GreaterThanOrEqual => {
+                Self::compile_compare(builder, LogicalOperator::GE)?
+            }
+        };
+
         Ok(())
     }
 
@@ -356,16 +342,43 @@ impl Expr {
         builder: &mut ProgramBuilder,
         operator: LogicalOperator,
     ) -> Result<(), ALError> {
-        builder.add_instruction(Instruction::Compare {
+        builder.build_instruction(Instruction::Compare {
             lhs: Register::RA2.into(),
             rhs: Register::RA1.into(),
         })?;
         // Load the result of the comparison into RA1
-        builder.add_instruction(Instruction::LoadBool {
+        builder.build_instruction(Instruction::LoadBool {
             dst: Register::RA1,
             op: operator,
         })?;
 
+        Ok(())
+    }
+
+    fn compile_literal(
+        builder: &mut ProgramBuilder,
+        literal: &Spanned<Literal>,
+    ) -> Result<(), ALError> {
+        match **literal {
+            // This is very bad. We are currently converting a i64 to an u32 (Arg20)
+            Literal::NumberInt(val) => builder
+                .build_instruction(Instruction::Imm {
+                    dst: Register::RA1,
+                    value: Arg20(val as u32),
+                })
+                .map_err(Into::into),
+            Literal::NumberFloat(_) => todo!("Floats are not supported yet"),
+            Literal::String(_) => todo!("Strings are not supported yet"),
+            Literal::Bool(val) => builder
+                .build_instruction(Instruction::Imm {
+                    dst: Register::RA1,
+                    value: Arg20(if val { 1 } else { 0 }),
+                })
+                .map_err(Into::into),
+        }
+    }
+
+    fn compile_loop(builder: &mut ProgramBuilder, body: &Spanned<Expr>) -> Result<(), ALError> {
         Ok(())
     }
 }

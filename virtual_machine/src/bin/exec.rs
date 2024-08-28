@@ -27,25 +27,25 @@ fn main() -> VMResult<()> {
 fn prog_test(builder: &mut ProgramBuilder) -> VMResult<()> {
     builder.add_value(2999, 32)?;
 
-    builder.add_instruction(Instruction::Load {
+    builder.build_instruction(Instruction::Load {
         dst: Register::RA1,
         offset: Arg20(-2i32 as u32),
     })?;
-    builder.add_instruction(Instruction::Imm {
+    builder.build_instruction(Instruction::Imm {
         dst: Register::RA2,
         value: Arg20(-3i32 as u32),
     })?;
-    builder.add_instruction(Instruction::Add {
+    builder.build_instruction(Instruction::Add {
         dst: Register::RA3,
         lhs: Register::RA1.into(),
         rhs: Register::RA2.into(),
     })?;
-    builder.add_instruction(Instruction::Add {
+    builder.build_instruction(Instruction::Add {
         dst: Register::RA4,
         lhs: Register::RA1.into(),
         rhs: RegisterOrLiteral::Literal(12),
     })?;
-    builder.add_instruction(Instruction::Jump {
+    builder.build_instruction(Instruction::Jump {
         cond: JumpCondition::Always,
         offset: Arg20(-5i32 as u32),
     })?;
@@ -56,20 +56,20 @@ fn prog_test(builder: &mut ProgramBuilder) -> VMResult<()> {
 #[allow(dead_code)]
 fn prog_simple_loop(builder: &mut ProgramBuilder) -> VMResult<()> {
     // Load loop count into ra1
-    builder.add_instruction(Instruction::Imm {
+    builder.build_instruction(Instruction::Imm {
         dst: Register::RA1,
         value: Arg20(5),
     })?;
-    builder.add_instruction(Instruction::Add {
+    builder.build_instruction(Instruction::Add {
         dst: Register::RA1,
         lhs: Register::RA1.into(),
         rhs: RegisterOrLiteral::Literal(-1i8 as u8),
     })?;
-    builder.add_instruction(Instruction::Compare {
+    builder.build_instruction(Instruction::Compare {
         lhs: Register::RA1.into(),
         rhs: RegisterOrLiteral::Literal(0),
     })?;
-    builder.add_instruction(Instruction::Jump {
+    builder.build_instruction(Instruction::Jump {
         cond: JumpCondition::NotZero,
         offset: Arg20(-3i32 as u32),
     })?;
@@ -78,7 +78,7 @@ fn prog_simple_loop(builder: &mut ProgramBuilder) -> VMResult<()> {
 
 #[allow(dead_code)]
 fn prog_stack(builder: &mut ProgramBuilder) -> VMResult<()> {
-    builder.add_instruction(Instruction::Push(RegisterOrLiteral::Literal(32)))?;
-    builder.add_instruction(Instruction::Pop(Register::RA1))?;
+    builder.build_instruction(Instruction::Push(RegisterOrLiteral::Literal(32)))?;
+    builder.build_instruction(Instruction::Pop(Register::RA1))?;
     Ok(())
 }

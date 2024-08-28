@@ -3,11 +3,24 @@ use std::collections::HashMap;
 use crate::{
     error::{VMError, VMResult},
     instruction::{
-        args::{arg20::Arg20, InstructionArg},
+        args::{arg20::Arg20, jump_cond::JumpCondition, InstructionArg},
         Instruction,
     },
     memory::Memory,
 };
+
+pub struct Block {
+    label: String,
+    // len: usize, ?? Dont know if needed
+}
+
+impl Block {
+    pub fn new(label: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+        }
+    }
+}
 
 pub struct UnresolvedInstruction {
     instruction: Instruction,
@@ -40,7 +53,7 @@ impl ProgramBuilder {
         }
     }
 
-    pub fn add_instruction(&mut self, instruction: Instruction) -> VMResult<()> {
+    pub fn build_instruction(&mut self, instruction: Instruction) -> VMResult<()> {
         let instr = Instruction::match_to_bytes(instruction);
         // (self.memory as <Memory>).write(self.addr, instr);
         // How do i write via the memory trait?
@@ -50,7 +63,11 @@ impl ProgramBuilder {
         Ok(())
     }
 
-    pub fn add_unresolved(&mut self, instruction: Instruction, label: impl Into<String>) {
+    pub fn build_instruction_unresolved(
+        &mut self,
+        instruction: Instruction,
+        label: impl Into<String>,
+    ) {
         self.unresolved.push(UnresolvedInstruction {
             instruction,
             label: label.into(),
@@ -59,14 +76,28 @@ impl ProgramBuilder {
         self.addr += 1;
     }
 
+    pub fn build_unconditional_jump(&mut self, block: &Block) {
+        self.build_instruction_unresolved(
+            Instruction::Jump {
+                cond: JumpCondition::Always,
+                offset: Arg20(0),
+            },
+            block.label.clone(),
+        );
+    }
+
     pub fn add_value(&mut self, addr: u32, value: u32) -> VMResult<()> {
         self.memory.write(addr, value)?;
 
         Ok(())
     }
 
-    pub fn add_label(&mut self, label: String) {
+    pub fn insert_label(&mut self, label: String) {
         self.labels.insert(label, self.addr);
+    }
+
+    pub fn start_block(&mut self, label: &Block) {
+        self.insert_label(label.label.clone());
     }
 
     pub fn finish(mut self) -> VMResult<[u32; 1024]> {
