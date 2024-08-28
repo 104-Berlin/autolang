@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use source_span::Span;
+use miette::{miette, Context, Error, LabeledSpan, SourceSpan};
 /// This Module is used to execute a program.
 use value::Value;
 
 use crate::{
-    error::{ALResult, Error, ErrorKind, TypeMismatchReason},
+    error::{ControllFlow, InvalidNumberOfArguments, TypeMismatch, TypeMismatchReason},
     module::Module,
     parser::{
         binary_expression::{BinaryExpression, BinaryOperator},
@@ -14,15 +14,16 @@ use crate::{
         structs::StructValue,
         type_def::{TypeDef, TypeID},
     },
-    spanned::Spanned,
+    spanned::{SpanExt, Spanned},
     system_functions::{self, IntoSystem, System},
     tokenizer::literal::Literal,
+    ALResult,
 };
 
 pub mod value;
 
 pub struct ExecutionContext<'a> {
-    pub span: Span,
+    pub span: SourceSpan,
     pub scopes: Vec<Scope>,
     pub public_functions: Vec<&'a Spanned<FunctionDecl>>,
     pub public_types: HashMap<String, Spanned<TypeDef>>,
@@ -71,7 +72,7 @@ impl<'a> ExecutionContext<'a> {
         {
             main.value.proto.value.name.clone()
         } else {
-            return Err(Error::new(self.span, ErrorKind::NoMainFunction));
+            return Err(miette!("No main function found"));
         };
 
         self.run_function(func_name, &[])
@@ -102,10 +103,7 @@ impl<'a> ExecutionContext<'a> {
         match (system_function, function) {
             (Some(func), _) => self.run_system_function(func_name, func.1.as_ref(), input_values),
             (None, Some(func)) => self.run_declared_function(func_name.span, func, input_values),
-            (None, None) => Err(Error::new(
-                func_name.span,
-                ErrorKind::FunctionNotFound(func_name.value),
-            )),
+            (None, None) => Err(miette!("Function '{}' not found", func_name.value)),
         }
     }
 
@@ -136,17 +134,18 @@ impl<'a> ExecutionContext<'a> {
 
     fn run_declared_function(
         &mut self,
-        call_span: Span,
+        call_span: SourceSpan,
         function: &Spanned<FunctionDecl>,
         arguments: Vec<ALResult<Value>>,
     ) -> ALResult<Value> {
         // Check for provided arguments
         if function.value.proto.value.arguments.value.len() != arguments.len() {
-            return Err(Error::new_invalid_number_of_arguments(
-                call_span,
-                function.value.proto.value.arguments.value.len(),
-                arguments.len(),
-            ));
+            return Err(InvalidNumberOfArguments {
+                found: arguments.len(),
+                expected: function.value.proto.value.arguments.value.len(),
+                span: call_span,
+            }
+            .into());
         }
 
         // Create a new scope for the function
@@ -168,12 +167,13 @@ impl<'a> ExecutionContext<'a> {
         {
             let value = value?;
             if value.value.type_id != arg_type.value {
-                return Err(Error::new_type_mismatch(
-                    value.span,
-                    arg_type.value.clone(),
-                    value.value.type_id.clone(),
-                    TypeMismatchReason::FunctionArgument,
-                ));
+                return Err(TypeMismatch {
+                    found: value.value.type_id.clone(),
+                    expected: arg_type.value.clone(),
+                    reason: TypeMismatchReason::FunctionArgument,
+                    span: value.span,
+                }
+                .into());
             }
 
             // Make spanned tuple of the variable name and the value
@@ -187,10 +187,9 @@ impl<'a> ExecutionContext<'a> {
         self.scopes.push(scope);
 
         let res = self.run_expr(&function.value.body).or_else(|err| {
-            let (kind, span) = err.split();
-            match kind {
-                ErrorKind::Return(val) => Ok(Spanned::new(val, span)),
-                _ => Err(Error::new(span, kind)),
+            match err.downcast_ref::<ControllFlow>() {
+                Some(ControllFlow::Return(val)) => Ok(Spanned::new(val.clone(), call_span)),
+                _ => Err(err),
             }
         })?;
 
@@ -199,12 +198,13 @@ impl<'a> ExecutionContext<'a> {
 
         if res.value.type_id != return_type {
             // Return types dont match
-            return Err(Error::new_type_mismatch(
-                res.span,
-                return_type,
-                res.value.type_id.clone(),
-                TypeMismatchReason::FunctionReturn,
-            ));
+            return Err(TypeMismatch {
+                found: res.value.type_id.clone(),
+                expected: return_type,
+                reason: TypeMismatchReason::FunctionReturn,
+                span: res.span,
+            }
+            .into());
         }
 
         Ok(res)
@@ -213,7 +213,6 @@ impl<'a> ExecutionContext<'a> {
     fn run_expr(&mut self, expr: &Spanned<Expr>) -> ALResult<Value> {
         match &expr.value {
             Expr::Dot { lhs, rhs } => {
-                let span = lhs.span;
                 let lhs = self.run_expr(lhs)?;
                 match &rhs.value {
                     DotExpr::Variable(name) => {
@@ -229,9 +228,12 @@ impl<'a> ExecutionContext<'a> {
                                                     .get_field(index)
                                                     .expect("Field must exist. Or we try to access wrong struct")
                                                     .clone()
-                                ).ok_or(Error::new(expr.span, ErrorKind::StructFieldNotFound(name.value.clone())))
+                                ).ok_or(miette!(
+                                    labels = vec![LabeledSpan::at(expr.span, "here")],
+                                    "Field not found",
+                                ))
                             }
-                            _ => Err(Error::new(span.next().union(name.span), ErrorKind::FailedToAccessField(type_def.value))),
+                            _ => Err(miette!("Can't access field of non-struct type")),
                         }
                     }
                     _ => unimplemented!(),
@@ -255,9 +257,9 @@ impl<'a> ExecutionContext<'a> {
                     self.find_type_def(&name.clone().map_value(TypeID::User))?;
 
                 let TypeDef::Struct(struct_def) = value else {
-                    return Err(Error::new(
-                        name.span,
-                        ErrorKind::TypeNotFound(name.value.clone()),
+                    return Err(miette!(
+                        labels = vec![LabeledSpan::at(name.span, "here")],
+                        "Type is not a struct",
                     ));
                 };
 
@@ -267,28 +269,29 @@ impl<'a> ExecutionContext<'a> {
                         .iter()
                         .find(|f| f.0.value == struct_def_field.value.0)
                         .map(|f| self.run_expr(&f.1))
-                        .ok_or(Error::new(
-                            expr.span,
-                            ErrorKind::StructFieldNotInitialized(struct_def_field.value.0.clone()),
+                        .ok_or(miette!(
+                            labels = vec![LabeledSpan::at(name.span, "here")],
+                            "Field not initialized",
                         ))??;
 
                     // Handle invalid type
                     if field.value.type_id != struct_def_field.value.1 {
-                        return Err(Error::new_type_mismatch(
-                            field.span,
-                            struct_def_field.value.1.clone(),
-                            field.value.type_id,
-                            TypeMismatchReason::VariableAssignment,
-                        ));
+                        return Err(TypeMismatch {
+                            found: field.value.type_id.clone(),
+                            expected: struct_def_field.value.1.clone(),
+                            reason: TypeMismatchReason::FunctionArgument,
+                            span: field.span,
+                        })
+                        .wrap_err("Field initialization");
                     }
                     struct_value.push_field(field);
                 }
                 // Check if we try to initialize a field that is not in the struct
                 for field in field_inits {
                     if !struct_def.fields.iter().any(|f| f.value.0 == field.0.value) {
-                        return Err(Error::new(
-                            field.0.span,
-                            ErrorKind::StructFieldNotFound(field.0.value.clone()),
+                        return Err(miette!(
+                            labels = vec![LabeledSpan::at(field.0.span, "here")],
+                            "Field not found",
                         ));
                     }
                 }
@@ -306,15 +309,18 @@ impl<'a> ExecutionContext<'a> {
                 Ok(Spanned::new(val.value, val.span))
             }
             Expr::Let(var_name, type_id, assign) => {
-                if let Some(Some(_)) = self.scopes.last().map(|scope| {
+                if let Some(Some(v)) = self.scopes.last().map(|scope| {
                     scope
                         .variables
                         .iter()
                         .find(|var| var.value.0 == var_name.value)
                 }) {
-                    return Err(Error::new(
-                        var_name.span,
-                        ErrorKind::VariableAlreadyDeclared(var_name.value.clone()),
+                    return Err(miette!(
+                        labels = vec![
+                            LabeledSpan::at(var_name.span, "this"),
+                            LabeledSpan::at(v.span, "here")
+                        ],
+                        "Variable already defined",
                     ));
                 }
 
@@ -324,12 +330,13 @@ impl<'a> ExecutionContext<'a> {
 
                 if let Some(type_id) = type_id {
                     if value.type_id != type_id.value {
-                        return Err(Error::new_type_mismatch(
+                        return Err(TypeMismatch {
+                            found: value.type_id.clone(),
+                            expected: type_id.value.clone(),
+                            reason: TypeMismatchReason::VariableAssignment,
                             span,
-                            type_id.value.clone(),
-                            value.type_id,
-                            TypeMismatchReason::VariableAssignment,
-                        ));
+                        }
+                        .into());
                     }
                 }
 
@@ -353,7 +360,10 @@ impl<'a> ExecutionContext<'a> {
                         var.value.set_value(&rhs)?;
                         return Ok(Spanned::new(rhs.value, expr.span));
                     } else {
-                        return Err(Error::new(lhs.span, ErrorKind::InvalidAssignmentTarget));
+                        return Err(miette!(
+                            labels = vec![LabeledSpan::at(lhs.span, "here")],
+                            "Left hand side of assignment must be a variable",
+                        ));
                     }
                 }
 
@@ -376,7 +386,7 @@ impl<'a> ExecutionContext<'a> {
                     // Assign already covered
                     _ => unreachable!(),
                 }
-                .map(|v| v.map_span(|_| lhs.span.union(rhs.span)))
+                .map(|v| v.map_span(|_| lhs.span.union(&rhs.span)))
             }
             Expr::IfExpression {
                 if_block: (condition, then_block),
@@ -384,12 +394,12 @@ impl<'a> ExecutionContext<'a> {
                 else_block,
             } => {
                 let condition = self.run_expr(condition)?;
-                let value = condition.value.as_bool().ok_or(Error::new_type_mismatch(
-                    condition.span,
-                    TypeID::Bool,
-                    condition.value.type_id.clone(),
-                    TypeMismatchReason::FunctionArgument,
-                ))?;
+                let value = condition.value.as_bool().ok_or(TypeMismatch {
+                    found: condition.value.type_id.clone(),
+                    expected: TypeID::Bool,
+                    reason: TypeMismatchReason::FunctionArgument,
+                    span: condition.span,
+                })?;
 
                 if value {
                     return self.run_expr(then_block);
@@ -397,11 +407,9 @@ impl<'a> ExecutionContext<'a> {
 
                 for (else_if_cond, else_if_block) in else_if_blocks {
                     let condition = self.run_expr(else_if_cond)?;
-                    let value = condition.value.as_bool().ok_or(Error::new_type_mismatch(
-                        condition.span,
-                        TypeID::Bool,
-                        condition.value.type_id.clone(),
-                        TypeMismatchReason::FunctionArgument,
+                    let value = condition.value.as_bool().ok_or(miette!(
+                        labels = vec![LabeledSpan::at(else_if_cond.span, "here")],
+                        "Condition must be a boolean",
                     ))?;
 
                     if value {
@@ -430,11 +438,13 @@ impl<'a> ExecutionContext<'a> {
                 match self.run_expr(expr) {
                     Ok(_) => {}
                     Err(err) => {
-                        let (kind, span) = err.split();
-                        match kind {
-                            ErrorKind::Break => break Ok(Spanned::new(Value::new_void(), span)),
-                            ErrorKind::Continue => continue,
-                            _ => return Err(Error::new(span, kind)),
+                        let flow = err.downcast_ref::<ControllFlow>();
+                        match flow {
+                            Some(ControllFlow::Break) => {
+                                break Ok(Spanned::new(Value::new_void(), expr.span))
+                            }
+                            Some(ControllFlow::Continue) => continue,
+                            _ => return Err(err),
                         }
                     }
                 }
@@ -446,10 +456,10 @@ impl<'a> ExecutionContext<'a> {
                     .map(|e| self.run_expr(e))
                     .transpose()?
                     .unwrap_or(Spanned::new(Value::new_void(), expr.span));
-                Err(Error::new(value.span, ErrorKind::Return(value.value)))
+                Err(ControllFlow::Return(value.value).into())
             }
-            Expr::Break => Err(Error::new(expr.span, ErrorKind::Break)),
-            Expr::Continue => Err(Error::new(expr.span, ErrorKind::Continue)),
+            Expr::Break => Err(ControllFlow::Break.into()),
+            Expr::Continue => Err(ControllFlow::Continue.into()),
         }
     }
 }
@@ -468,9 +478,9 @@ impl ExecutionContext<'_> {
             }
         }
 
-        Err(Error::new(
-            name.span,
-            ErrorKind::VariableNotFound(name.value.clone()),
+        Err(miette!(
+            labels = vec![LabeledSpan::at(name.span, "here")],
+            "Variable not found",
         ))
     }
 
@@ -485,9 +495,9 @@ impl ExecutionContext<'_> {
             TypeID::User(name) => {
                 let type_def = self.public_types.get(name).cloned();
 
-                type_def.ok_or(Error::new(
-                    type_id.span,
-                    ErrorKind::TypeNotFound(name.clone()),
+                type_def.ok_or(miette!(
+                    labels = vec![LabeledSpan::at(type_id.span, "here")],
+                    "Type not found",
                 ))
             }
         }

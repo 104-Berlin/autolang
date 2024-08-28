@@ -1,17 +1,18 @@
 use binary_expression::{BinaryExpression, BinaryOperator};
 use expression::{DotExpr, Expr};
 use function::{ArgumentDecl, FunctionDecl, FunctionProto};
+use miette::{Context, Error, SourceOffset, SourceSpan};
 use reset_iterator::ResetIterator;
-use source_span::Span;
 use structs::Struct;
 use type_def::TypeID;
 
 use crate::{
-    error::{ALResult, Error, ErrorKind},
+    error::UnexpectedToken,
     input_stream::InputStream,
     module::Module,
-    spanned::Spanned,
+    spanned::{SpanExt, Spanned},
     tokenizer::{identifier::Identifier, token::Token, Tokenizer},
+    ALResult,
 };
 
 pub mod binary_expression;
@@ -32,24 +33,26 @@ pub mod type_def;
 /// let mut parser = Parser::new(input);
 /// let expr: Spanned<Expr> = parser.try_into().unwrap();
 /// ```
-pub struct Parser {
-    input: ResetIterator<Tokenizer>,
+pub struct Parser<'a> {
+    input: ResetIterator<Tokenizer<'a>>,
+    last_offset: usize,
 }
 
-impl Parser {
+impl<'a> Parser<'a> {
     /// Creates a new parser from an input stream.
     /// # Arguments
     /// * `input` - The input stream to parse.
     /// # Returns
     /// A new parser.
-    pub fn new(input: impl InputStream<Output = char> + 'static) -> Self {
+    pub fn new(input: impl InputStream<Output = char> + 'a) -> Self {
         Self {
             input: Tokenizer::new(input).into(),
+            last_offset: 0,
         }
     }
 }
 
-impl TryInto<Spanned<Expr>> for Parser {
+impl TryInto<Spanned<Expr>> for Parser<'_> {
     type Error = Error;
 
     fn try_into(mut self) -> Result<Spanned<Expr>, Self::Error> {
@@ -57,7 +60,7 @@ impl TryInto<Spanned<Expr>> for Parser {
     }
 }
 
-impl TryInto<Spanned<Module>> for Parser {
+impl TryInto<Spanned<Module>> for Parser<'_> {
     type Error = Error;
 
     fn try_into(mut self) -> Result<Spanned<Module>, Self::Error> {
@@ -67,33 +70,32 @@ impl TryInto<Spanned<Module>> for Parser {
 
 // -------------------------------------------------------------------------------------------
 // Parse Module
-impl Parser {
+impl Parser<'_> {
     pub fn parse_module(&mut self) -> ALResult<Module> {
         let mut module = Module::new("main");
-        let mut module_span = Span::default();
+        let mut module_span = SourceSpan::new(SourceOffset::from(0), 0);
 
         while let Ok(Spanned::<Token> { value, span }) = self.peek() {
-            module_span.append(span);
+            module_span = module_span.union(&span);
             match value {
                 Token::Identifier(Identifier::Function) => {
-                    self.input.consume();
+                    self.consume();
                     let function = self.parse_function()?;
                     module.add_function(function);
                 }
                 Token::Identifier(Identifier::Struct) => {
-                    self.input.consume();
+                    self.consume();
                     let struct_name = self.parse_user_defined_identifier()?;
                     let struct_decl = self.parse_struct()?;
                     module.add_struct(struct_name, struct_decl);
                 }
                 _ => {
-                    return Err(Error::new(
+                    return Err(UnexpectedToken {
+                        found: value,
                         span,
-                        ErrorKind::UnexpectedToken {
-                            found: value,
-                            expected: None,
-                        },
-                    ));
+                        expected: "Expected function or struct".into(),
+                    })
+                    .wrap_err("Parsing module");
                 }
             }
         }
@@ -106,17 +108,17 @@ impl Parser {
         let proto = self.parse_function_proto(function_name.clone())?;
         let body = self.parse_block_expression()?;
 
-        let span = function_name.span.union(body.span);
+        let span = function_name.span.union(&body.span);
 
         Ok(Spanned::new(FunctionDecl { proto, body }, span))
     }
 
     fn parse_function_proto(&mut self, name: Spanned<String>) -> ALResult<FunctionProto> {
         let args = self.parse_function_args_decl()?;
-        let span = name.span.union(args.span);
+        let span = name.span.union(&args.span);
         let return_type =
             if let Ok(arrow) = self.consume_checked(Token::Identifier(Identifier::Arrow)) {
-                self.parse_type()?.map_span(|span| arrow.span.union(span))
+                self.parse_type()?.map_span(|span| arrow.span.union(&span))
             } else {
                 Spanned::new(TypeID::Void, args.span.next())
             };
@@ -147,7 +149,7 @@ impl Parser {
             fields.push(self.parse_struct_field()?);
 
             if let Ok(rbrace) = self.consume_checked(Token::Identifier(Identifier::RBrace)) {
-                let span = start_span.union(rbrace.span);
+                let span = start_span.union(&rbrace.span);
 
                 return Ok(Spanned::new(fields, span));
             }
@@ -162,14 +164,14 @@ impl Parser {
 
         Ok(Spanned::new(
             (name.value, ty.value),
-            name.span.union(ty.span),
+            name.span.union(&ty.span),
         ))
     }
 }
 
 // -------------------------------------------------------------------------------------------
 // Parse Expression
-impl Parser {
+impl Parser<'_> {
     pub fn parse_expression(&mut self) -> ALResult<Expr> {
         match self.peek()?.value {
             Token::Identifier(Identifier::If) => self.parse_if_expression(),
@@ -178,7 +180,7 @@ impl Parser {
             Token::Identifier(Identifier::LBrace) => self.parse_block_expression(),
             Token::Identifier(Identifier::Return) => self.parse_return_expression(),
             Token::Identifier(Identifier::Break) => {
-                self.input.consume();
+                self.consume();
                 Ok(Spanned::new(Expr::Break, self.peek()?.span))
             }
             _ => {
@@ -194,25 +196,24 @@ impl Parser {
         let mut lhs = match value {
             Token::Identifier(Identifier::UserDefined(_)) => self.parse_expression_identifier(),
             Token::Literal(literal) => {
-                self.input.consume();
+                self.consume();
                 Ok(Spanned::new(
                     Expr::Literal(Spanned::new(literal, span)),
                     span,
                 ))
             }
             Token::Identifier(Identifier::LParen) => {
-                self.input.consume();
+                self.consume();
                 let expr = self.parse_expression()?;
                 self.consume_checked(Token::Identifier(Identifier::RParen))?;
                 Ok(expr)
             }
-            _ => Err(Error::new(
-                span,
-                ErrorKind::UnexpectedToken {
-                    found: value,
-                    expected: None,
-                },
-            )),
+            _ => Err(UnexpectedToken {
+                found: value,
+                span: self.last_offset.into(),
+                expected: "Expected expression".into(),
+            }
+            .into()),
         }?;
 
         // Check if we have a dot operator
@@ -220,8 +221,10 @@ impl Parser {
             .consume_checked(Token::Identifier(Identifier::Dot))
             .is_ok()
         {
-            let rhs = self.parse_expression_function_call_or_variable()?;
-            let span = span.union(rhs.span);
+            let identifier = self.parse_user_defined_identifier()?;
+
+            let rhs = self.parse_expression_function_call_or_variable(identifier)?;
+            let span = span.union(&rhs.span);
 
             lhs = Spanned::new(
                 Expr::Dot {
@@ -237,47 +240,47 @@ impl Parser {
 
     /// This parses everything that starts with an identifier. Variables, function calls, etc.
     fn parse_expression_identifier(&mut self) -> ALResult<Expr> {
-        self.try_parse(Self::parse_struct_literal)
-            .or_else(|_| self.try_parse(Self::parse_expression_function_call_or_variable))
+        let identifier = self.parse_user_defined_identifier()?;
+        match self.expect_token(Token::Identifier(Identifier::LBrace)) {
+            Ok(_) => self.parse_struct_literal(identifier),
+            Err(_) => self
+                .parse_expression_function_call_or_variable(identifier)
+                .map(|v| v.map_value(Into::into)),
+        }
     }
 
-    fn parse_struct_literal(&mut self) -> ALResult<Expr> {
-        let identifier = self.parse_user_defined_identifier()?;
+    fn parse_struct_literal(&mut self, identifier: Spanned<String>) -> ALResult<Expr> {
         self.consume_checked(Token::Identifier(Identifier::LBrace))?;
 
+        self.input.pop_end();
+        self.input.push_end(); // Only becaus we know we are in try_parse
+
         let mut fields = Vec::new();
-        loop {
+        while !self.is_next_token(Token::Identifier(Identifier::RBrace)) {
             let name = self.parse_user_defined_identifier()?;
             self.consume_checked(Token::Identifier(Identifier::Colon))?;
             let expr = self.parse_expression()?;
 
             fields.push((name, expr));
 
-            // No Comma? Next token must be RBrace
-            if self
-                .consume_checked(Token::Identifier(Identifier::Comma))
-                .is_err()
-            {
-                break;
-            }
-
-            // If we have a comma, we expect another field or the end of the struct
-            if self.is_next_token(Token::Identifier(Identifier::RBrace)) {
-                break;
+            if !self.is_next_token(Token::Identifier(Identifier::RBrace)) {
+                // No RBrace? Next token must be a comma
+                self.consume_checked(Token::Identifier(Identifier::Comma))?;
             }
         }
         let r_brace_span = self
             .consume_checked(Token::Identifier(Identifier::RBrace))?
             .span;
 
-        let span = identifier.span.union(r_brace_span);
+        let span = identifier.span.union(&r_brace_span);
 
         Ok(Spanned::new(Expr::StructLiteral(identifier, fields), span))
     }
 
-    fn parse_expression_function_call_or_variable(&mut self) -> ALResult<DotExpr> {
-        let identifier = self.parse_user_defined_identifier()?;
-
+    fn parse_expression_function_call_or_variable(
+        &mut self,
+        identifier: Spanned<String>,
+    ) -> ALResult<DotExpr> {
         match self.consume_checked(Token::Identifier(Identifier::LParen)) {
             Ok(_) => {
                 let mut args = Vec::new();
@@ -297,7 +300,7 @@ impl Parser {
                     .consume_checked(Token::Identifier(Identifier::RParen))?
                     .span;
 
-                let span = identifier.span.union(r_paren_span);
+                let span = identifier.span.union(&r_paren_span);
 
                 Ok(Spanned::new(DotExpr::FunctionCall(identifier, args), span))
             }
@@ -331,7 +334,7 @@ impl Parser {
                 return Ok(lhs);
             }
 
-            self.input.consume();
+            self.consume();
 
             let mut rhs = self.parse_primary_expression()?;
 
@@ -339,7 +342,7 @@ impl Parser {
                 rhs = self.parse_binary_expression(rhs, op.value.precedence() + 1)?;
             }
 
-            let span = lhs.span.union(rhs.span);
+            let span = lhs.span.union(&rhs.span);
 
             lhs = Spanned::new(
                 Expr::Binary(Spanned::new(BinaryExpression::new(lhs, op, rhs), span)),
@@ -382,7 +385,8 @@ impl Parser {
         }
 
         let span = span.union(
-            self.consume_checked(Token::Identifier(Identifier::RBrace))?
+            &self
+                .consume_checked(Token::Identifier(Identifier::RBrace))?
                 .span,
         );
 
@@ -395,12 +399,12 @@ impl Parser {
             .span;
 
         if self.is_next_token(Token::Identifier(Identifier::Semicolon)) {
-            self.input.consume();
+            self.consume();
             return Ok(Spanned::new(Expr::Return(None), span));
         }
 
         let expr = self.parse_expression()?;
-        let span = span.union(expr.span);
+        let span = span.union(&expr.span);
 
         Ok(Spanned::new(Expr::Return(Some(Box::new(expr))), span))
     }
@@ -423,7 +427,7 @@ impl Parser {
         self.consume_checked(Token::Identifier(Identifier::Assignment))?;
         let assign_to = self.parse_expression()?;
 
-        let span = span_start.union(assign_to.span);
+        let span = span_start.union(&assign_to.span);
         Ok(Spanned::new(
             Expr::Let(var_name.clone(), type_id, Box::new(assign_to)),
             span,
@@ -458,7 +462,7 @@ impl Parser {
 
         let span = condition
             .span
-            .union(else_block.as_ref().unwrap_or(&then_block).span);
+            .union(&else_block.as_ref().unwrap_or(&then_block).span);
 
         Ok(Spanned::new(
             Expr::IfExpression {
@@ -476,7 +480,7 @@ impl Parser {
             .span;
         let expr = Box::new(self.parse_block_expression()?);
 
-        let span = loop_span.union(expr.span);
+        let span = loop_span.union(&expr.span);
         Ok(Spanned::new(Expr::Loop(expr), span))
     }
 }
@@ -484,17 +488,22 @@ impl Parser {
 // -------------------------------------------------------------------------------------------
 // Simple Parsers
 
-impl Parser {
+impl Parser<'_> {
     fn parse_user_defined_identifier(&mut self) -> ALResult<String> {
         match self.peek()? {
             Spanned::<Token> {
                 value: Token::Identifier(Identifier::UserDefined(name)),
                 span,
             } => {
-                self.input.consume();
+                self.consume();
                 Ok(Spanned::new(name, span))
             }
-            tok => Err(Error::new_unexpected_token(tok, None)),
+            tok => Err(UnexpectedToken {
+                found: tok.value,
+                span: tok.span,
+                expected: "Expected user defined identifier".into(),
+            }
+            .into()),
         }
     }
 
@@ -514,7 +523,7 @@ impl Parser {
             self.consume_checked(Token::Identifier(Identifier::RParen))
         {
             // No Params
-            return Ok(Spanned::new(vec![], l_paren_span.union(span)));
+            return Ok(Spanned::new(vec![], l_paren_span.union(&span)));
         }
 
         loop {
@@ -536,7 +545,7 @@ impl Parser {
             .consume_checked(Token::Identifier(Identifier::RParen))?
             .span;
 
-        Ok(Spanned::new(args, l_paren_span.union(r_paren_span)))
+        Ok(Spanned::new(args, l_paren_span.union(&r_paren_span)))
     }
 
     fn parse_type(&mut self) -> ALResult<TypeID> {
@@ -545,28 +554,41 @@ impl Parser {
                 value: Token::Identifier(Identifier::UserDefined(type_name)),
                 span,
             } => {
-                self.input.consume();
+                self.consume();
                 Ok(Spanned::new(TypeID::from_string(&type_name), span))
             }
-            tok => Err(Error::new_unexpected_token(tok, None)),
+            token => Err(UnexpectedToken {
+                found: token.value,
+                span: token.span,
+                expected: "Expected a type".into(),
+            }
+            .into()),
         }
     }
 }
 // Parser helpers
-impl Parser {
-    fn try_parse<T, F>(&mut self, f: F) -> ALResult<Expr>
+impl Parser<'_> {
+    fn consume(&mut self) -> Option<&Spanned<Token>> {
+        self.input
+            .consume()
+            .inspect(|t| self.last_offset = t.span.offset() + t.span.len())
+    }
+
+    #[allow(dead_code)]
+    fn try_parse<T, F>(&mut self, f: F) -> ALResult<T>
     where
         F: FnOnce(&mut Self) -> ALResult<T>,
-        T: Into<Expr>,
     {
         self.input.push_end();
+        let last_offset_cache = self.last_offset;
         let result = f(self);
         if result.is_err() {
             self.input.reset();
+            self.last_offset = last_offset_cache;
         } else {
             self.input.pop_end();
         }
-        result.map(|t| t.map_value(Into::into))
+        result
     }
 
     fn is_next_token(&mut self, expected: Token) -> bool {
@@ -580,7 +602,12 @@ impl Parser {
         if token.value == expected {
             Ok(token)
         } else {
-            Err(Error::new_unexpected_token(token, Some(expected)))
+            Err(UnexpectedToken {
+                found: token.value,
+                span: token.span,
+                expected: expected.into(),
+            }
+            .into())
         }
     }
 
@@ -588,10 +615,14 @@ impl Parser {
         let token = self.peek()?;
 
         if token.value == expected {
-            self.input.consume();
+            self.consume();
             Ok(token)
         } else {
-            Err(Error::new_unexpected_token(token, Some(expected)))
+            Err(Error::from(UnexpectedToken {
+                found: token.value,
+                span: SourceSpan::from(self.last_offset),
+                expected: expected.into(),
+            }))
         }
     }
 
@@ -602,6 +633,6 @@ impl Parser {
         self.input
             .peek()
             .cloned()
-            .ok_or(Error::new(Span::default(), ErrorKind::UnexpectedEOF))
+            .ok_or(miette::Error::msg("Unexpected EOF"))
     }
 }

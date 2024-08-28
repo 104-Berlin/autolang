@@ -15,7 +15,7 @@ fn main() {
     let t = Test {
         a: 0.1,
         b: Some {
-            c: 23
+            c: 32,
         },
     };
 
