@@ -3,7 +3,10 @@ use std::env::args;
 use virtual_machine::{
     error::VMResult,
     instruction::{
-        args::{arg20::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral},
+        args::{
+            arg20::Arg20, jump_cond::JumpCondition, mem_offset::MemOffset,
+            register_or_literal::RegisterOrLiteral,
+        },
         Instruction,
     },
     machine::Machine,
@@ -29,7 +32,7 @@ fn prog_test(builder: &mut ProgramBuilder) -> VMResult<()> {
 
     builder.build_instruction(Instruction::Load {
         dst: Register::RA1,
-        offset: Arg20(-2i32 as u32),
+        offset: MemOffset::from(-2i32 as u32),
     })?;
     builder.build_instruction(Instruction::Imm {
         dst: Register::RA2,
@@ -47,7 +50,7 @@ fn prog_test(builder: &mut ProgramBuilder) -> VMResult<()> {
     })?;
     builder.build_instruction(Instruction::Jump {
         cond: JumpCondition::Always,
-        offset: Arg20(-5i32 as u32),
+        offset: MemOffset::from(-5i32 as u32),
     })?;
 
     Ok(())
@@ -71,7 +74,7 @@ fn prog_simple_loop(builder: &mut ProgramBuilder) -> VMResult<()> {
     })?;
     builder.build_instruction(Instruction::Jump {
         cond: JumpCondition::NotZero,
-        offset: Arg20(-3i32 as u32),
+        offset: MemOffset::from(-3i32 as u32),
     })?;
     Ok(())
 }

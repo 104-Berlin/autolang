@@ -437,37 +437,25 @@ impl Parser<'_> {
     fn parse_if_expression(&mut self) -> ALResult<Expr> {
         self.consume_checked(Token::Identifier(Identifier::If))?;
 
-        let condition = Box::new(self.parse_expression()?);
-        let then_block = Box::new(self.parse_block_expression()?);
-
-        let mut else_if_blocks = Vec::new();
+        let if_condition = Box::new(self.parse_expression()?);
+        let if_block = Box::new(self.parse_block_expression()?);
 
         let mut else_block = None;
 
-        while self
+        if self
             .consume_checked(Token::Identifier(Identifier::Else))
             .is_ok()
         {
-            match self.consume_checked(Token::Identifier(Identifier::If)) {
-                Ok(_) => else_if_blocks.push((
-                    Box::new(self.parse_expression()?),
-                    Box::new(self.parse_block_expression()?),
-                )),
-                Err(_) => {
-                    else_block = Some(Box::new(self.parse_block_expression()?));
-                    break;
-                }
-            }
+            else_block = Some(Box::new(self.parse_expression()?));
         }
 
-        let span = condition
+        let span = if_condition
             .span
-            .union(&else_block.as_ref().unwrap_or(&then_block).span);
+            .union(&else_block.as_ref().unwrap_or(&if_block).span);
 
         Ok(Spanned::new(
             Expr::IfExpression {
-                if_block: (condition, then_block),
-                else_if_blocks,
+                if_block: (if_condition, if_block),
                 else_block,
             },
             span,

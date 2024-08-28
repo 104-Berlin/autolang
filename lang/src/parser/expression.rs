@@ -10,7 +10,7 @@ use virtual_machine::{
     register::Register,
 };
 
-use crate::{spanned::Spanned, tokenizer::literal::Literal};
+use crate::{error::VMToMietteError, spanned::Spanned, tokenizer::literal::Literal};
 
 use super::{
     binary_expression::{BinaryExpression, BinaryOperator},
@@ -51,8 +51,6 @@ pub enum Expr {
 
     IfExpression {
         if_block: IfCondition,
-        // Pair of condition and block
-        else_if_blocks: Vec<IfCondition>,
         else_block: Option<Box<Spanned<Expr>>>,
     },
 
@@ -131,13 +129,9 @@ impl Display for Expr {
             Expr::Variable(name) => write!(f, "{}", name.value),
             Expr::IfExpression {
                 if_block: (if_cond, if_block),
-                else_if_blocks,
                 else_block,
             } => {
                 write!(f, "if {} {}", if_cond.value, if_block.value)?;
-                for (condition, block) in else_if_blocks {
-                    write!(f, " else if {} {}", condition.value, block.value)?;
-                }
                 if let Some(else_block) = else_block {
                     write!(f, " else {}", else_block.value)?;
                 }
@@ -191,14 +185,8 @@ impl Buildable for Expr {
             }
             Expr::IfExpression {
                 if_block,
-                else_if_blocks,
                 else_block,
-            } => Self::compile_if_expr(
-                builder,
-                if_block,
-                else_if_blocks,
-                else_block.as_ref().map(AsRef::as_ref),
-            ),
+            } => Self::compile_if_expr(builder, if_block, else_block.as_ref().map(AsRef::as_ref)),
             Expr::Loop(body) => Self::compile_loop(builder, body),
             Expr::Block(statements, return_expr) => Self::compile_block_expr(
                 builder,
@@ -229,82 +217,52 @@ impl Expr {
 
     fn compile_if_expr(
         builder: &mut ProgramBuilder,
-        if_block: &IfCondition,
-        else_if_blocks: &[IfCondition],
-        else_block: Option<&Spanned<Expr>>,
+        if_cond: &IfCondition,
+        else_expr: Option<&Spanned<Expr>>,
     ) -> Result<(), Error> {
-        let if_label = format!("if_{}", if_block.0.span.offset());
-        let if_end_label = format!("if_end_{}", if_block.0.span.offset());
+        let if_block = builder.append_block(Some("if_block")); // format!("if_{}", if_block.0.span.offset());
+        let if_end_block = builder.append_block(Some("if_end_block")); //  format!("if_end_{}", if_block.0.span.offset());
 
-        if_block.0.build(builder)?; // Bool value in RA1
+        let else_block = else_expr
+            .map(|_| builder.append_block(Some("else_block")))
+            .unwrap_or(if_end_block);
 
-        builder.build_instruction_unresolved(
-            Instruction::Jump {
-                cond: JumpCondition::NotZero, // If the comparision was true (e.a RA1 > 0)
-                offset: Arg20(0),             // What needs to go in here???
-            },
-            if_label.clone(),
-        );
+        // Condition
+        if_cond.0.build(builder)?; // Bool value in RA1
 
-        for else_if_block in else_if_blocks {
-            let else_if_label = format!("else_if_{}", else_if_block.0.span.offset());
-            else_if_block.0.build(builder)?; // Bool value in RA1
+        // Jump to if block
+        builder
+            .build_conditional_jump(if_block, JumpCondition::NotZero)
+            .to_miette_error()?;
+        // Jump to else block or end of if in case of no else block
+        builder
+            .build_unconditional_jump(else_block)
+            .to_miette_error()?;
 
-            builder.build_instruction_unresolved(
-                Instruction::Jump {
-                    cond: JumpCondition::NotZero, // If the comparision was true (e.a RA1 > 0)
-                    offset: Arg20(0),             // What needs to go in here???
-                },
-                else_if_label.clone(),
-            );
+        // If block
+        builder.block_insertion_point(if_block).to_miette_error()?;
+        if_cond.1.build(builder)?;
+        // Append jump to end
+        builder
+            .build_unconditional_jump(if_end_block)
+            .to_miette_error()?;
+
+        // Else block
+        if let Some(else_expr) = else_expr {
+            // This is the appened else block. So not the if_end_block
+            builder
+                .block_insertion_point(else_block)
+                .to_miette_error()?;
+            else_expr.build(builder)?;
+            builder
+                .build_unconditional_jump(if_end_block)
+                .to_miette_error()?;
         }
 
-        let end = if let Some(else_block) = else_block {
-            let else_label = format!("else_{}", else_block.span.offset());
-            else_label.clone()
-        } else {
-            if_end_label.clone()
-        };
+        builder
+            .block_insertion_point(if_end_block)
+            .to_miette_error()?;
 
-        builder.build_instruction_unresolved(
-            Instruction::Jump {
-                cond: JumpCondition::Always,
-                offset: Arg20(0),
-            },
-            end,
-        );
-
-        let build_body = |builder: &mut virtual_machine::program_builder::ProgramBuilder,
-                          body: &Spanned<Expr>,
-                          label: String|
-         -> Result<(), Error> {
-            builder.insert_label(label);
-            body.build(builder)?;
-            builder.build_instruction_unresolved(
-                Instruction::Jump {
-                    cond: JumpCondition::Always,
-                    offset: Arg20(0),
-                },
-                if_end_label.clone(),
-            );
-
-            Ok(())
-        };
-
-        // if block
-        build_body(builder, &if_block.1, if_label)?;
-
-        for else_if_block in else_if_blocks {
-            let else_if_label = format!("else_if_{}", else_if_block.0.span.offset());
-            build_body(builder, &else_if_block.1, else_if_label)?;
-        }
-
-        if let Some(else_block) = else_block {
-            let else_label = format!("else_{}", else_block.span.offset());
-            build_body(builder, else_block, else_label)?;
-        }
-
-        builder.insert_label(if_end_label);
         Ok(())
     }
 

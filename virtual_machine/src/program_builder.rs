@@ -3,30 +3,12 @@ use std::collections::HashMap;
 use crate::{
     error::{VMError, VMResult},
     instruction::{
-        args::{arg20::Arg20, jump_cond::JumpCondition, InstructionArg},
+        args::{jump_cond::JumpCondition, InstructionArg},
+        unresolved_instruction::{Unresolved, UnresolvedInstruction},
         Instruction,
     },
     memory::Memory,
 };
-
-pub struct Block {
-    label: String,
-    // len: usize, ?? Dont know if needed
-}
-
-impl Block {
-    pub fn new(label: impl Into<String>) -> Self {
-        Self {
-            label: label.into(),
-        }
-    }
-}
-
-pub struct UnresolvedInstruction {
-    instruction: Instruction,
-    label: String,
-    addr: u32,
-}
 
 pub trait Buildable {
     type Error;
@@ -39,8 +21,10 @@ pub struct ProgramBuilder {
     /// Maybe we need some kind of resizable memory?
     memory: [u32; 1024],
     addr: u32,
-    unresolved: Vec<UnresolvedInstruction>,
+    unresolved: Vec<(UnresolvedInstruction, u32)>,
     labels: HashMap<String, u32>,
+
+    blocks: Vec<String>,
 }
 
 impl Default for ProgramBuilder {
@@ -50,6 +34,7 @@ impl Default for ProgramBuilder {
             addr: 0,
             unresolved: Vec::new(),
             labels: HashMap::new(),
+            blocks: Vec::new(),
         }
     }
 }
@@ -67,25 +52,35 @@ impl ProgramBuilder {
 
     pub fn build_instruction_unresolved(
         &mut self,
-        instruction: Instruction,
-        label: impl Into<String>,
-    ) {
-        self.unresolved.push(UnresolvedInstruction {
-            instruction,
-            label: label.into(),
-            addr: self.addr,
-        });
-        self.addr += 1;
+        instruction: UnresolvedInstruction,
+    ) -> VMResult<()> {
+        // We try resolving them right now.
+        match instruction.resolved(self.addr, &self.labels) {
+            Ok(instruction) => self.build_instruction(instruction),
+            Err(_) => {
+                self.unresolved.push((instruction, self.addr));
+                self.addr += 1;
+                Ok(())
+            }
+        }
     }
 
-    pub fn build_unconditional_jump(&mut self, block: &Block) {
-        self.build_instruction_unresolved(
-            Instruction::Jump {
-                cond: JumpCondition::Always,
-                offset: Arg20(0),
-            },
-            block.label.clone(),
-        );
+    pub fn build_unconditional_jump(&mut self, block: usize) -> VMResult<()> {
+        let label = self.get_block_label(block)?;
+
+        self.build_instruction_unresolved(UnresolvedInstruction::Jump {
+            cond: JumpCondition::Always,
+            offset: Unresolved::Unresolved(label),
+        })
+    }
+
+    pub fn build_conditional_jump(&mut self, block: usize, cond: JumpCondition) -> VMResult<()> {
+        let label = self.get_block_label(block)?;
+
+        self.build_instruction_unresolved(UnresolvedInstruction::Jump {
+            cond,
+            offset: Unresolved::Unresolved(label),
+        })
     }
 
     pub fn add_value(&mut self, addr: u32, value: u32) -> VMResult<()> {
@@ -94,12 +89,22 @@ impl ProgramBuilder {
         Ok(())
     }
 
-    pub fn insert_label(&mut self, label: String) {
-        self.labels.insert(label, self.addr);
+    pub fn append_block(&mut self, label: Option<&'static str>) -> usize {
+        let block_id = self.blocks.len() + 1;
+        let label = format!("{}__block{}", label.unwrap_or(""), block_id);
+        self.blocks.push(label);
+        block_id
     }
 
-    pub fn start_block(&mut self, label: &Block) {
-        self.insert_label(label.label.clone());
+    pub fn block_insertion_point(&mut self, block: usize) -> VMResult<()> {
+        let block_label = self.get_block_label(block)?;
+        if self.labels.contains_key(&block_label) {
+            return Err(VMError::BlockAlreadyDefined(block));
+        }
+
+        self.labels.insert(block_label, self.addr);
+
+        Ok(())
     }
 
     pub fn finish(mut self) -> VMResult<[u32; 1024]> {
@@ -109,32 +114,19 @@ impl ProgramBuilder {
 
     fn resolve_instructions(&mut self) -> VMResult<()> {
         for instr in self.unresolved.iter() {
-            let addr = self
-                .labels
-                .get(&instr.label)
-                .ok_or(VMError::LabelNotFound("Label not found".into()))?;
+            let instruction = instr.0.resolved(instr.1, &self.labels)?;
 
-            let offset = *addr as i32 - instr.addr as i32;
-
-            match instr.instruction {
-                Instruction::Jump { cond, .. } => self.memory.write(
-                    instr.addr,
-                    Instruction::match_to_bytes(Instruction::Jump {
-                        cond,
-                        offset: Arg20(offset as u32),
-                    }),
-                )?,
-                Instruction::Load { dst, .. } => self.memory.write(
-                    instr.addr,
-                    Instruction::match_to_bytes(Instruction::Load {
-                        dst,
-                        offset: Arg20(offset as u32),
-                    }),
-                )?,
-                _ => {}
-            };
+            self.memory
+                .write(instr.1, Instruction::match_to_bytes(instruction))?;
         }
 
         Ok(())
+    }
+
+    fn get_block_label(&self, block: usize) -> VMResult<String> {
+        self.blocks
+            .get(block - 1)
+            .cloned()
+            .ok_or(VMError::BlockNotFound(block))
     }
 }

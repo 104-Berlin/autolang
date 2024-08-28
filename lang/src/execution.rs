@@ -390,7 +390,6 @@ impl<'a> ExecutionContext<'a> {
             }
             Expr::IfExpression {
                 if_block: (condition, then_block),
-                else_if_blocks,
                 else_block,
             } => {
                 let condition = self.run_expr(condition)?;
@@ -403,18 +402,6 @@ impl<'a> ExecutionContext<'a> {
 
                 if value {
                     return self.run_expr(then_block);
-                }
-
-                for (else_if_cond, else_if_block) in else_if_blocks {
-                    let condition = self.run_expr(else_if_cond)?;
-                    let value = condition.value.as_bool().ok_or(miette!(
-                        labels = vec![LabeledSpan::at(else_if_cond.span, "here")],
-                        "Condition must be a boolean",
-                    ))?;
-
-                    if value {
-                        return self.run_expr(else_if_block);
-                    }
                 }
 
                 if let Some(else_block) = else_block {

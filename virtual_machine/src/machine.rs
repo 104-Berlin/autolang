@@ -1,5 +1,6 @@
 use crate::error::VMResult;
 use crate::instruction::args::logical_operator::LogicalOperator;
+use crate::instruction::args::mem_offset::MemOffset;
 use crate::instruction::{
     args::{
         arg20::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral,
@@ -115,7 +116,7 @@ impl Machine {
                     let pc = self.registers.get(Register::PC);
                     self.registers.set(
                         Register::PC,
-                        (pc as i32 + sign_extend(offset.0, 20) as i32) as u32,
+                        (pc as i32 + sign_extend(*offset, 20) as i32) as u32,
                     );
                     self.cycle_changed_pc = true;
                 }
@@ -153,9 +154,9 @@ impl Machine {
         &mut self.registers
     }
 
-    fn load(&mut self, dst: Register, offset: Arg20) -> VMResult<()> {
+    fn load(&mut self, dst: Register, offset: MemOffset) -> VMResult<()> {
         let ip = self.registers.get(Register::PC);
-        let addr = (ip as u64 + sign_extend(offset.0, 20) as u64) as u32;
+        let addr = (ip as u64 + sign_extend(*offset, 20) as u64) as u32;
         let addr = self.memory.read(addr)?;
         self.registers.set(dst, addr);
         self.registers.update_condition(dst);
@@ -200,9 +201,9 @@ impl Machine {
         let end = self.registers.get(Register::SP);
         let mut sp = Self::STACK_START;
         while sp < end {
-            sp += 1;
             let val = self.memory.read(sp).unwrap();
             println!("0x{:04x}: {}", sp, val);
+            sp += 1;
         }
     }
 }

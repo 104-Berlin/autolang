@@ -21,4 +21,13 @@ pub enum VMError {
 
     #[error("Label not found '{0}'")]
     LabelNotFound(String),
+
+    #[error("Block already defined '{0}'")]
+    BlockAlreadyDefined(usize),
+
+    #[error("Unresolved label '{0}'")]
+    UnresolvedLabel(String),
+
+    #[error("Block ({0}) not found")]
+    BlockNotFound(usize),
 }

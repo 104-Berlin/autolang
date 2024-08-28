@@ -3,6 +3,7 @@ use crate::error::{VMError, VMResult};
 pub mod arg20;
 pub mod jump_cond;
 pub mod logical_operator;
+pub mod mem_offset;
 pub mod register_or_literal;
 pub mod unused;
 

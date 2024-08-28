@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use args::{
     arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
-    register_or_literal::RegisterOrLiteral, InstructionArg,
+    mem_offset::MemOffset, register_or_literal::RegisterOrLiteral, InstructionArg,
 };
 use reader::InstructionReader;
 use writer::InstructionWriter;
@@ -13,6 +13,7 @@ use opcode::OpCode;
 pub mod args;
 pub mod opcode;
 pub mod reader;
+pub mod unresolved_instruction;
 pub mod writer;
 
 #[derive(Debug)]
@@ -21,7 +22,7 @@ pub enum Instruction {
     Nop,
     Load {
         dst: Register,
-        offset: Arg20,
+        offset: MemOffset,
     },
     // This loads a bool from the condition register
     // This seems to be a bit of waste, but wanted to get it in for now
@@ -49,7 +50,7 @@ pub enum Instruction {
     },
     Jump {
         cond: JumpCondition,
-        offset: Arg20,
+        offset: MemOffset,
     },
 
     Push(RegisterOrLiteral),
@@ -162,12 +163,12 @@ impl Display for Instruction {
         match self {
             Self::Halt => write!(f, "Halt"),
             Self::Nop => write!(f, "Nop"),
-            Self::Load { dst, offset } => write!(f, "Load {}, {}", dst, offset.0),
+            Self::Load { dst, offset } => write!(f, "Load {}, {:?}", dst, offset),
             Self::LoadBool { dst, op } => write!(f, "LoadBool {}, {:?}", dst, op),
             Self::Imm { dst, value } => write!(f, "Imm {}, {}", dst, value.0),
             Self::Copy { dst, src } => write!(f, "Copy {} => {}", dst, src),
             Self::Add { dst, lhs, rhs } => write!(f, "Add {}, {}, {}", dst, lhs, rhs),
-            Self::Jump { cond, offset } => write!(f, "Jump {:?} {}", cond, offset.0 as i32),
+            Self::Jump { cond, offset } => write!(f, "Jump {:?} {:?}", cond, offset),
             Self::Compare { lhs, rhs } => write!(f, "Compare {}, {}", lhs, rhs),
             Self::Push(reg) => write!(f, "Push {}", reg),
             Self::Pop(reg) => write!(f, "Pop {}", reg),
