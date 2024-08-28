@@ -16,19 +16,19 @@ pub struct Machine {
     registers: RegisterStore,
 
     halt: bool,
-    cycle_changed_ip: bool,
+    cycle_changed_pc: bool,
 }
 
 impl Machine {
-    pub const STACK_START: u32 = 1000;
-    pub const PROGRAM_START: u32 = 3000;
+    pub const STACK_START: u32 = 0x0300;
+    pub const PROGRAM_START: u32 = 0x0BBB;
 
     pub fn new() -> Machine {
         let mut res = Self {
             memory: Box::new(vec![0u32; 1024 * 1024 * 4]),
             registers: RegisterStore::default(),
             halt: false,
-            cycle_changed_ip: false,
+            cycle_changed_pc: false,
         };
         res.reset_registers();
         res
@@ -43,7 +43,7 @@ impl Machine {
 
     pub fn reset_registers(&mut self) {
         self.registers = RegisterStore::default();
-        self.registers.set(Register::IP, Self::PROGRAM_START);
+        self.registers.set(Register::PC, Self::PROGRAM_START);
         self.registers.set(Register::SP, Self::STACK_START);
     }
 
@@ -64,15 +64,15 @@ impl Machine {
             return Ok(());
         }
 
-        let instruction_pointer = self.registers.get(Register::IP);
+        let instruction_pointer = self.registers.get(Register::PC);
         let instruction = self.memory.read(instruction_pointer)?;
 
-        self.cycle_changed_ip = false;
+        self.cycle_changed_pc = false;
 
         self.run_instruction(&instruction)?;
 
-        if !self.cycle_changed_ip {
-            self.registers.set(Register::IP, instruction_pointer + 1);
+        if !self.cycle_changed_pc {
+            self.registers.set(Register::PC, instruction_pointer + 1);
         }
 
         Ok(())
@@ -110,12 +110,12 @@ impl Machine {
                 );
 
                 if can_jump {
-                    let ip = self.registers.get(Register::IP);
+                    let pc = self.registers.get(Register::PC);
                     self.registers.set(
-                        Register::IP,
-                        (ip as i32 + sign_extend(offset.0, 20) as i32) as u32,
+                        Register::PC,
+                        (pc as i32 + sign_extend(offset.0, 20) as i32) as u32,
                     );
-                    self.cycle_changed_ip = true;
+                    self.cycle_changed_pc = true;
                 }
             }
             Instruction::Compare { lhs, rhs } => {
@@ -152,7 +152,7 @@ impl Machine {
     }
 
     fn load(&mut self, dst: Register, offset: Arg20) -> VMResult<()> {
-        let ip = self.registers.get(Register::IP);
+        let ip = self.registers.get(Register::PC);
         let addr = (ip as u64 + sign_extend(offset.0, 20) as u64) as u32;
         let addr = self.memory.read(addr)?;
         self.registers.set(dst, addr);
@@ -195,12 +195,12 @@ impl Machine {
     }
 
     pub fn dump_stack(&self) {
-        let sp = self.registers.get(Register::SP);
-        let mut sp = sp;
-        while sp > Self::STACK_START {
-            sp -= 1;
+        let end = self.registers.get(Register::SP);
+        let mut sp = Self::STACK_START;
+        while sp < end {
+            sp += 1;
             let val = self.memory.read(sp).unwrap();
-            println!("{}: {}", sp, val);
+            println!("0x{:04x}: {}", sp, val);
         }
     }
 }

@@ -24,8 +24,8 @@ pub enum Register {
     RS2,
     // Register for condition flags
     RSC,
-    // Instruction Pointer
-    IP,
+    // Program Counter
+    PC,
     // Stack Pointer
     SP,
     // Condition Register for some flags
@@ -60,7 +60,7 @@ impl Display for Register {
             Register::RS1 => "RS1",
             Register::RS2 => "RS2",
             Register::RSC => "RSC",
-            Register::IP => "IP",
+            Register::PC => "PC",
             Register::SP => "SP",
             Register::Cond => "Cond",
         };
@@ -86,8 +86,8 @@ pub struct RegisterStore {
 
     rsc: u32,
 
-    // Instruction pointer
-    ip: u32,
+    // Program counter
+    pc: u32,
 
     // Stack pointer
     sp: u32,
@@ -118,7 +118,7 @@ impl RegisterStore {
             Register::RS1 => self.rs1,
             Register::RS2 => self.rs2,
             Register::RSC => self.rsc,
-            Register::IP => self.ip,
+            Register::PC => self.pc,
             Register::SP => self.sp,
             Register::Cond => self.cond,
         }
@@ -135,7 +135,7 @@ impl RegisterStore {
             Register::RS1 => self.rs1 = value,
             Register::RS2 => self.rs2 = value,
             Register::RSC => self.rsc = value,
-            Register::IP => self.ip = value,
+            Register::PC => self.pc = value,
             Register::SP => self.sp = value,
             Register::Cond => self.cond = value,
         };
@@ -216,11 +216,11 @@ impl Display for RegisterStore {
             Cell::new(&format!("{:b}", self.rs2)),
         ]));
         table.add_row(Row::new(vec![
-            Cell::new("IP"),
-            Cell::new(&format!("{}", self.ip as i32)),
-            Cell::new(&format!("{}", self.ip)),
-            Cell::new(&format!("{:#X}", self.ip)),
-            Cell::new(&format!("{:b}", self.ip)),
+            Cell::new("PC"),
+            Cell::new(&format!("{}", self.pc as i32)),
+            Cell::new(&format!("{}", self.pc)),
+            Cell::new(&format!("{:#X}", self.pc)),
+            Cell::new(&format!("{:b}", self.pc)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("SP"),

@@ -5,7 +5,7 @@ use virtual_machine::{
         args::{arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator},
         Instruction,
     },
-    program_builder::Buildable,
+    program_builder::{Buildable, ProgramBuilder},
     register::Register,
 };
 
@@ -174,22 +174,22 @@ impl Buildable for Expr {
         builder: &mut virtual_machine::program_builder::ProgramBuilder,
     ) -> Result<(), Self::Error> {
         match self {
-            Expr::Dot { lhs, rhs } => todo!(),
+            Expr::Dot { .. } => todo!(),
             Expr::FunctionCall(_, _) => todo!(),
             Expr::Binary(bin) => {
-                // Load RHS into RS1 and LHS into RS2
+                // Load RHS into RA1 and LHS into RA2
                 bin.value.lhs.build(builder)?;
                 builder.add_instruction(Instruction::Copy {
-                    dst: Register::RS2,
-                    src: Register::RS1,
+                    dst: Register::RA2,
+                    src: Register::RA1,
                 })?;
                 bin.value.rhs.build(builder)?;
 
                 match *bin.op {
                     BinaryOperator::Add => builder.add_instruction(Instruction::Add {
-                        dst: Register::RS1,
-                        lhs: Register::RS2.into(),
-                        rhs: Register::RS1.into(),
+                        dst: Register::RA1,
+                        lhs: Register::RA2.into(),
+                        rhs: Register::RA1.into(),
                     })?,
 
                     BinaryOperator::Assign => todo!(),
@@ -198,90 +198,34 @@ impl Buildable for Expr {
                     BinaryOperator::Divide => todo!(),
                     BinaryOperator::And => todo!(),
                     BinaryOperator::Or => todo!(),
-                    BinaryOperator::Equal => {
-                        // Make comparison
-                        builder.add_instruction(Instruction::Compare {
-                            lhs: Register::RS2.into(),
-                            rhs: Register::RS1.into(),
-                        })?;
-                        // Load the result of the comparison into RS1
-                        builder.add_instruction(Instruction::LoadBool {
-                            dst: Register::RS1,
-                            op: LogicalOperator::EQ,
-                        })?;
-                    }
+                    BinaryOperator::Equal => Self::compile_compare(builder, LogicalOperator::EQ)?,
                     BinaryOperator::NotEqual => {
-                        // Make comparison
-                        builder.add_instruction(Instruction::Compare {
-                            lhs: Register::RS2.into(),
-                            rhs: Register::RS1.into(),
-                        })?;
-                        // Load the result of the comparison into RS1
-                        builder.add_instruction(Instruction::LoadBool {
-                            dst: Register::RS1,
-                            op: LogicalOperator::NE,
-                        })?;
+                        Self::compile_compare(builder, LogicalOperator::NE)?
                     }
                     BinaryOperator::LessThan => {
-                        // Make comparison
-                        builder.add_instruction(Instruction::Compare {
-                            lhs: Register::RS2.into(),
-                            rhs: Register::RS1.into(),
-                        })?;
-                        // Load the result of the comparison into RS1
-                        builder.add_instruction(Instruction::LoadBool {
-                            dst: Register::RS1,
-                            op: LogicalOperator::LT,
-                        })?;
+                        Self::compile_compare(builder, LogicalOperator::LT)?
                     }
                     BinaryOperator::LessThanOrEqual => {
-                        // Make comparison
-                        builder.add_instruction(Instruction::Compare {
-                            lhs: Register::RS2.into(),
-                            rhs: Register::RS1.into(),
-                        })?;
-                        // Load the result of the comparison into RS1
-                        builder.add_instruction(Instruction::LoadBool {
-                            dst: Register::RS1,
-                            op: LogicalOperator::LE,
-                        })?;
+                        Self::compile_compare(builder, LogicalOperator::LE)?
                     }
                     BinaryOperator::GreaterThan => {
-                        // Make comparison
-                        builder.add_instruction(Instruction::Compare {
-                            lhs: Register::RS2.into(),
-                            rhs: Register::RS1.into(),
-                        })?;
-                        // Load the result of the comparison into RS1
-                        builder.add_instruction(Instruction::LoadBool {
-                            dst: Register::RS1,
-                            op: LogicalOperator::GT,
-                        })?;
+                        Self::compile_compare(builder, LogicalOperator::GT)?
                     }
                     BinaryOperator::GreaterThanOrEqual => {
-                        // Make comparison
-                        builder.add_instruction(Instruction::Compare {
-                            lhs: Register::RS2.into(),
-                            rhs: Register::RS1.into(),
-                        })?;
-                        // Load the result of the comparison into RS1
-                        builder.add_instruction(Instruction::LoadBool {
-                            dst: Register::RS1,
-                            op: LogicalOperator::GE,
-                        })?;
+                        Self::compile_compare(builder, LogicalOperator::GE)?
                     }
                 };
             }
             Expr::Literal(val) => match **val {
                 // This is very bad. We are currently converting a i64 to an u32 (Arg20)
                 Literal::NumberInt(val) => builder.add_instruction(Instruction::Imm {
-                    dst: Register::RS1,
+                    dst: Register::RA1,
                     value: Arg20(val as u32),
                 })?,
                 Literal::NumberFloat(_) => todo!("Floats are not supported yet"),
                 Literal::String(_) => todo!("Strings are not supported yet"),
                 Literal::Bool(val) => builder.add_instruction(Instruction::Imm {
-                    dst: Register::RS1,
+                    dst: Register::RA1,
                     value: Arg20(if val { 1 } else { 0 }),
                 })?,
             },
@@ -290,100 +234,138 @@ impl Buildable for Expr {
             Expr::Assignment(_, _) => todo!(),
             Expr::Let(symbol, typ, assign) => {
                 assign.build(builder)?;
-                builder.add_instruction(Instruction::Push(Register::RS1.into()))?;
+                builder.add_instruction(Instruction::Push(Register::RA1.into()))?;
             }
             Expr::IfExpression {
                 if_block,
                 else_if_blocks,
                 else_block,
-            } => {
-                let if_label = format!("if_{}", if_block.0.span);
-                let if_end_label = format!("if_end_{}", if_block.0.span);
-
-                if_block.0.build(builder)?; // Bool value in RS1
-
-                builder.add_unresolved(
-                    Instruction::Jump {
-                        cond: JumpCondition::NotZero, // If the comparision was true (e.a RS1 > 0)
-                        offset: Arg20(0),             // What needs to go in here???
-                    },
-                    if_label.clone(),
-                );
-
-                for else_if_block in else_if_blocks {
-                    let else_if_label = format!("else_if_{}", else_if_block.0.span);
-                    else_if_block.0.build(builder)?; // Bool value in RS1
-
-                    builder.add_unresolved(
-                        Instruction::Jump {
-                            cond: JumpCondition::NotZero, // If the comparision was true (e.a RS1 > 0)
-                            offset: Arg20(0),             // What needs to go in here???
-                        },
-                        else_if_label.clone(),
-                    );
-                }
-
-                let end = if let Some(else_block) = else_block {
-                    let else_label = format!("else_{}", else_block.span);
-                    else_label.clone()
-                } else {
-                    if_end_label.clone()
-                };
-
-                builder.add_unresolved(
-                    Instruction::Jump {
-                        cond: JumpCondition::Always,
-                        offset: Arg20(0),
-                    },
-                    end,
-                );
-
-                let build_body =
-                    |builder: &mut virtual_machine::program_builder::ProgramBuilder,
-                     body: &Box<Spanned<Expr>>,
-                     label: String|
-                     -> Result<(), ALError> {
-                        builder.add_label(label);
-                        body.build(builder)?;
-                        builder.add_unresolved(
-                            Instruction::Jump {
-                                cond: JumpCondition::Always,
-                                offset: Arg20(0),
-                            },
-                            if_end_label.clone(),
-                        );
-
-                        Ok(())
-                    };
-
-                // if block
-                build_body(builder, &if_block.1, if_label)?;
-
-                for else_if_block in else_if_blocks {
-                    let else_if_label = format!("else_if_{}", else_if_block.0.span);
-                    build_body(builder, &else_if_block.1, else_if_label)?;
-                }
-
-                if let Some(else_block) = else_block {
-                    let else_label = format!("else_{}", else_block.span);
-                    build_body(builder, &else_block, else_label)?;
-                }
-
-                builder.add_label(if_end_label);
-            }
+            } => Self::compile_if_expr(builder, if_block, else_if_blocks, else_block.as_ref())?,
             Expr::Loop(_) => todo!(),
-            Expr::Block(statements, return_expr) => {
-                for statement in statements {
-                    statement.build(builder)?;
-                }
-                if let Some(return_expr) = return_expr {
-                    return_expr.build(builder)?;
-                }
-            }
+            Expr::Block(statements, return_expr) => Self::compile_block_expr(
+                builder,
+                statements,
+                return_expr.as_ref().map(|v| v.as_ref()),
+            )?,
             Expr::Return(_) => todo!(),
             Expr::Break => todo!(),
             Expr::Continue => todo!(),
         }
+        Ok(())
+    }
+}
+
+impl Expr {
+    fn compile_block_expr(
+        builder: &mut ProgramBuilder,
+        statements: &[Spanned<Expr>],
+        return_expr: Option<&Spanned<Expr>>,
+    ) -> Result<(), ALError> {
+        for statement in statements {
+            statement.build(builder)?;
+        }
+        if let Some(return_expr) = return_expr {
+            return_expr.build(builder)?;
+        }
+        Ok(())
+    }
+
+    fn compile_if_expr(
+        builder: &mut ProgramBuilder,
+        if_block: &IfCondition,
+        else_if_blocks: &[IfCondition],
+        else_block: Option<&Box<Spanned<Expr>>>,
+    ) -> Result<(), ALError> {
+        let if_label = format!("if_{}", if_block.0.span);
+        let if_end_label = format!("if_end_{}", if_block.0.span);
+
+        if_block.0.build(builder)?; // Bool value in RA1
+
+        builder.add_unresolved(
+            Instruction::Jump {
+                cond: JumpCondition::NotZero, // If the comparision was true (e.a RA1 > 0)
+                offset: Arg20(0),             // What needs to go in here???
+            },
+            if_label.clone(),
+        );
+
+        for else_if_block in else_if_blocks {
+            let else_if_label = format!("else_if_{}", else_if_block.0.span);
+            else_if_block.0.build(builder)?; // Bool value in RA1
+
+            builder.add_unresolved(
+                Instruction::Jump {
+                    cond: JumpCondition::NotZero, // If the comparision was true (e.a RA1 > 0)
+                    offset: Arg20(0),             // What needs to go in here???
+                },
+                else_if_label.clone(),
+            );
+        }
+
+        let end = if let Some(else_block) = else_block {
+            let else_label = format!("else_{}", else_block.span);
+            else_label.clone()
+        } else {
+            if_end_label.clone()
+        };
+
+        builder.add_unresolved(
+            Instruction::Jump {
+                cond: JumpCondition::Always,
+                offset: Arg20(0),
+            },
+            end,
+        );
+
+        let build_body = |builder: &mut virtual_machine::program_builder::ProgramBuilder,
+                          body: &Box<Spanned<Expr>>,
+                          label: String|
+         -> Result<(), ALError> {
+            builder.add_label(label);
+            body.build(builder)?;
+            builder.add_unresolved(
+                Instruction::Jump {
+                    cond: JumpCondition::Always,
+                    offset: Arg20(0),
+                },
+                if_end_label.clone(),
+            );
+
+            Ok(())
+        };
+
+        // if block
+        build_body(builder, &if_block.1, if_label)?;
+
+        for else_if_block in else_if_blocks {
+            let else_if_label = format!("else_if_{}", else_if_block.0.span);
+            build_body(builder, &else_if_block.1, else_if_label)?;
+        }
+
+        if let Some(else_block) = else_block {
+            let else_label = format!("else_{}", else_block.span);
+            build_body(builder, &else_block, else_label)?;
+        }
+
+        builder.add_label(if_end_label);
+        Ok(())
+    }
+
+    /// Requires RA2 = lhs and RA1 = rhs
+    fn compile_compare(
+        builder: &mut ProgramBuilder,
+        operator: LogicalOperator,
+    ) -> Result<(), ALError> {
+        builder.add_instruction(Instruction::Compare {
+            lhs: Register::RA2.into(),
+            rhs: Register::RA1.into(),
+        })?;
+        // Load the result of the comparison into RA1
+        builder.add_instruction(Instruction::LoadBool {
+            dst: Register::RA1,
+            op: operator,
+        })?;
+
         Ok(())
     }
 }
