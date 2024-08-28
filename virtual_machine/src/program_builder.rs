@@ -43,8 +43,8 @@ pub struct ProgramBuilder {
     labels: HashMap<String, u32>,
 }
 
-impl ProgramBuilder {
-    pub fn new() -> Self {
+impl Default for ProgramBuilder {
+    fn default() -> Self {
         Self {
             memory: [0; 1024],
             addr: 0,
@@ -52,7 +52,9 @@ impl ProgramBuilder {
             labels: HashMap::new(),
         }
     }
+}
 
+impl ProgramBuilder {
     pub fn build_instruction(&mut self, instruction: Instruction) -> VMResult<()> {
         let instr = Instruction::match_to_bytes(instruction);
         // (self.memory as <Memory>).write(self.addr, instr);

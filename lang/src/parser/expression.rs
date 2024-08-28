@@ -193,11 +193,18 @@ impl Buildable for Expr {
                 if_block,
                 else_if_blocks,
                 else_block,
-            } => Self::compile_if_expr(builder, if_block, else_if_blocks, else_block.as_ref()),
+            } => Self::compile_if_expr(
+                builder,
+                if_block,
+                else_if_blocks,
+                else_block.as_ref().map(AsRef::as_ref),
+            ),
             Expr::Loop(body) => Self::compile_loop(builder, body),
-            Expr::Block(statements, return_expr) => {
-                Self::compile_block_expr(builder, statements, return_expr.as_ref())
-            }
+            Expr::Block(statements, return_expr) => Self::compile_block_expr(
+                builder,
+                statements,
+                return_expr.as_ref().map(AsRef::as_ref),
+            ),
             Expr::Return(_) => todo!(),
             Expr::Break => todo!(),
             Expr::Continue => todo!(),
@@ -209,7 +216,7 @@ impl Expr {
     fn compile_block_expr(
         builder: &mut ProgramBuilder,
         statements: &[Spanned<Expr>],
-        return_expr: Option<&Box<Spanned<Expr>>>,
+        return_expr: Option<&Spanned<Expr>>,
     ) -> Result<(), Error> {
         for statement in statements {
             statement.build(builder)?;
@@ -224,7 +231,7 @@ impl Expr {
         builder: &mut ProgramBuilder,
         if_block: &IfCondition,
         else_if_blocks: &[IfCondition],
-        else_block: Option<&Box<Spanned<Expr>>>,
+        else_block: Option<&Spanned<Expr>>,
     ) -> Result<(), Error> {
         let if_label = format!("if_{}", if_block.0.span.offset());
         let if_end_label = format!("if_end_{}", if_block.0.span.offset());
@@ -268,7 +275,7 @@ impl Expr {
         );
 
         let build_body = |builder: &mut virtual_machine::program_builder::ProgramBuilder,
-                          body: &Box<Spanned<Expr>>,
+                          body: &Spanned<Expr>,
                           label: String|
          -> Result<(), Error> {
             builder.insert_label(label);
@@ -294,7 +301,7 @@ impl Expr {
 
         if let Some(else_block) = else_block {
             let else_label = format!("else_{}", else_block.span.offset());
-            build_body(builder, &else_block, else_label)?;
+            build_body(builder, else_block, else_label)?;
         }
 
         builder.insert_label(if_end_label);

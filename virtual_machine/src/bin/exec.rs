@@ -14,10 +14,10 @@ use virtual_machine::{
 fn main() -> VMResult<()> {
     let step_mode = args().nth(1).map(|s| s == "-s").unwrap_or(false);
 
-    let mut builder = ProgramBuilder::new();
+    let mut builder = ProgramBuilder::default();
     prog_stack(&mut builder)?;
 
-    Machine::new()
+    Machine::default()
         .load_program(&builder.finish()?)?
         .run(step_mode)?;
     Ok(())

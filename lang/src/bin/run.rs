@@ -64,11 +64,12 @@ fn compile<'a>(
     let program = Compiler::default().compile(&module)?;
     OpenOptions::new()
         .write(true)
+        .truncate(true)
         .create(true)
         .open("out.bin")
         .unwrap()
-        .write(
-            &program
+        .write_all(
+            program
                 .iter()
                 .map(|i| format!("{}", Instruction::match_from_bytes(*i).unwrap()))
                 .collect::<Vec<String>>()
@@ -76,13 +77,13 @@ fn compile<'a>(
                 .as_bytes(),
         )
         .unwrap();
-    Ok(Machine::new()
+    Machine::new()
         .load_program(&program)
         .into_diagnostic()
         .wrap_err("Loading Program")?
         .run(step_mode)
         .into_diagnostic()
-        .wrap_err("Running program")?)
+        .wrap_err("Running program")
 }
 
 /* use lang::{execution::ExecutionContext, input_stream::FileInputStream, parser::Parser};

@@ -19,11 +19,8 @@ pub struct Machine {
     cycle_changed_pc: bool,
 }
 
-impl Machine {
-    pub const STACK_START: u32 = 0x0300;
-    pub const PROGRAM_START: u32 = 0x0BBB;
-
-    pub fn new() -> Machine {
+impl Default for Machine {
+    fn default() -> Machine {
         let mut res = Self {
             memory: Box::new(vec![0u32; 1024 * 1024 * 4]),
             registers: RegisterStore::default(),
@@ -33,6 +30,11 @@ impl Machine {
         res.reset_registers();
         res
     }
+}
+
+impl Machine {
+    pub const STACK_START: u32 = 0x0300;
+    pub const PROGRAM_START: u32 = 0x0BBB;
 
     pub fn load_program(mut self, program: &[u32]) -> VMResult<Self> {
         for (i, instr) in program.iter().enumerate() {

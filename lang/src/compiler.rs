@@ -25,7 +25,7 @@ impl Default for Compiler {
 
 impl Compiler {
     pub fn compile(&mut self, module: &Module) -> Result<[u32; 1024], miette::Error> {
-        let mut builder = ProgramBuilder::new();
+        let mut builder = ProgramBuilder::default();
         module.build(&mut builder)?;
         builder.finish().map_err(|e| miette!("{e}"))
     }
