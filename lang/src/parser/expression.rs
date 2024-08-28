@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use miette::{Context, Error, IntoDiagnostic};
 use virtual_machine::{
     instruction::{
         args::{arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator},
@@ -9,7 +10,7 @@ use virtual_machine::{
     register::Register,
 };
 
-use crate::{error::ALError, spanned::Spanned, tokenizer::literal::Literal};
+use crate::{spanned::Spanned, tokenizer::literal::Literal};
 
 use super::{
     binary_expression::{BinaryExpression, BinaryOperator},
@@ -167,7 +168,7 @@ impl Display for Expr {
 }
 
 impl Buildable for Expr {
-    type Error = ALError;
+    type Error = Error;
 
     fn build(
         &self,
@@ -185,7 +186,8 @@ impl Buildable for Expr {
                 assign.build(builder)?;
                 builder
                     .build_instruction(Instruction::Push(Register::RA1.into()))
-                    .map_err(Into::into)
+                    .into_diagnostic()
+                    .wrap_err("Building Let")
             }
             Expr::IfExpression {
                 if_block,
@@ -208,7 +210,7 @@ impl Expr {
         builder: &mut ProgramBuilder,
         statements: &[Spanned<Expr>],
         return_expr: Option<&Box<Spanned<Expr>>>,
-    ) -> Result<(), ALError> {
+    ) -> Result<(), Error> {
         for statement in statements {
             statement.build(builder)?;
         }
@@ -223,9 +225,9 @@ impl Expr {
         if_block: &IfCondition,
         else_if_blocks: &[IfCondition],
         else_block: Option<&Box<Spanned<Expr>>>,
-    ) -> Result<(), ALError> {
-        let if_label = format!("if_{}", if_block.0.span);
-        let if_end_label = format!("if_end_{}", if_block.0.span);
+    ) -> Result<(), Error> {
+        let if_label = format!("if_{}", if_block.0.span.offset());
+        let if_end_label = format!("if_end_{}", if_block.0.span.offset());
 
         if_block.0.build(builder)?; // Bool value in RA1
 
@@ -238,7 +240,7 @@ impl Expr {
         );
 
         for else_if_block in else_if_blocks {
-            let else_if_label = format!("else_if_{}", else_if_block.0.span);
+            let else_if_label = format!("else_if_{}", else_if_block.0.span.offset());
             else_if_block.0.build(builder)?; // Bool value in RA1
 
             builder.build_instruction_unresolved(
@@ -251,7 +253,7 @@ impl Expr {
         }
 
         let end = if let Some(else_block) = else_block {
-            let else_label = format!("else_{}", else_block.span);
+            let else_label = format!("else_{}", else_block.span.offset());
             else_label.clone()
         } else {
             if_end_label.clone()
@@ -268,7 +270,7 @@ impl Expr {
         let build_body = |builder: &mut virtual_machine::program_builder::ProgramBuilder,
                           body: &Box<Spanned<Expr>>,
                           label: String|
-         -> Result<(), ALError> {
+         -> Result<(), Error> {
             builder.insert_label(label);
             body.build(builder)?;
             builder.build_instruction_unresolved(
@@ -286,12 +288,12 @@ impl Expr {
         build_body(builder, &if_block.1, if_label)?;
 
         for else_if_block in else_if_blocks {
-            let else_if_label = format!("else_if_{}", else_if_block.0.span);
+            let else_if_label = format!("else_if_{}", else_if_block.0.span.offset());
             build_body(builder, &else_if_block.1, else_if_label)?;
         }
 
         if let Some(else_block) = else_block {
-            let else_label = format!("else_{}", else_block.span);
+            let else_label = format!("else_{}", else_block.span.offset());
             build_body(builder, &else_block, else_label)?;
         }
 
@@ -302,21 +304,27 @@ impl Expr {
     fn compile_binary_expression(
         builder: &mut ProgramBuilder,
         bin: &BinaryExpression,
-    ) -> Result<(), ALError> {
+    ) -> Result<(), Error> {
         // Load RHS into RA1 and LHS into RA2
         bin.lhs.build(builder)?;
-        builder.build_instruction(Instruction::Copy {
-            dst: Register::RA2,
-            src: Register::RA1,
-        })?;
+        builder
+            .build_instruction(Instruction::Copy {
+                dst: Register::RA2,
+                src: Register::RA1,
+            })
+            .into_diagnostic()
+            .wrap_err("Building Binary Expression")?;
         bin.rhs.build(builder)?;
 
         match *bin.op {
-            BinaryOperator::Add => builder.build_instruction(Instruction::Add {
-                dst: Register::RA1,
-                lhs: Register::RA2.into(),
-                rhs: Register::RA1.into(),
-            })?,
+            BinaryOperator::Add => builder
+                .build_instruction(Instruction::Add {
+                    dst: Register::RA1,
+                    lhs: Register::RA2.into(),
+                    rhs: Register::RA1.into(),
+                })
+                .into_diagnostic()
+                .wrap_err("Building (Add) Binary Expression")?,
 
             BinaryOperator::Assign => todo!(),
             BinaryOperator::Substract => todo!(),
@@ -341,16 +349,22 @@ impl Expr {
     fn compile_compare(
         builder: &mut ProgramBuilder,
         operator: LogicalOperator,
-    ) -> Result<(), ALError> {
-        builder.build_instruction(Instruction::Compare {
-            lhs: Register::RA2.into(),
-            rhs: Register::RA1.into(),
-        })?;
+    ) -> Result<(), Error> {
+        builder
+            .build_instruction(Instruction::Compare {
+                lhs: Register::RA2.into(),
+                rhs: Register::RA1.into(),
+            })
+            .into_diagnostic()
+            .wrap_err("Building Compare")?;
         // Load the result of the comparison into RA1
-        builder.build_instruction(Instruction::LoadBool {
-            dst: Register::RA1,
-            op: operator,
-        })?;
+        builder
+            .build_instruction(Instruction::LoadBool {
+                dst: Register::RA1,
+                op: operator,
+            })
+            .into_diagnostic()
+            .wrap_err("Building Compare")?;
 
         Ok(())
     }
@@ -358,7 +372,7 @@ impl Expr {
     fn compile_literal(
         builder: &mut ProgramBuilder,
         literal: &Spanned<Literal>,
-    ) -> Result<(), ALError> {
+    ) -> Result<(), Error> {
         match **literal {
             // This is very bad. We are currently converting a i64 to an u32 (Arg20)
             Literal::NumberInt(val) => builder
@@ -366,7 +380,8 @@ impl Expr {
                     dst: Register::RA1,
                     value: Arg20(val as u32),
                 })
-                .map_err(Into::into),
+                .into_diagnostic()
+                .wrap_err("Building Literal"),
             Literal::NumberFloat(_) => todo!("Floats are not supported yet"),
             Literal::String(_) => todo!("Strings are not supported yet"),
             Literal::Bool(val) => builder
@@ -374,11 +389,12 @@ impl Expr {
                     dst: Register::RA1,
                     value: Arg20(if val { 1 } else { 0 }),
                 })
-                .map_err(Into::into),
+                .into_diagnostic()
+                .wrap_err("Building Literal"),
         }
     }
 
-    fn compile_loop(builder: &mut ProgramBuilder, body: &Spanned<Expr>) -> Result<(), ALError> {
+    fn compile_loop(builder: &mut ProgramBuilder, body: &Spanned<Expr>) -> Result<(), Error> {
         Ok(())
     }
 }

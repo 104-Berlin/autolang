@@ -1,6 +1,7 @@
 use virtual_machine::program_builder::{Buildable, ProgramBuilder};
 
-use crate::{error::ALError, module::Module};
+use crate::module::Module;
+use miette::miette;
 
 pub struct Context;
 
@@ -23,9 +24,9 @@ impl Default for Compiler {
 }
 
 impl Compiler {
-    pub fn compile(&mut self, module: &Module) -> Result<[u32; 1024], ALError> {
+    pub fn compile(&mut self, module: &Module) -> Result<[u32; 1024], miette::Error> {
         let mut builder = ProgramBuilder::new();
         module.build(&mut builder)?;
-        Ok(builder.finish()?)
+        builder.finish().map_err(|e| miette!("{e}"))
     }
 }

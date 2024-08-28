@@ -1,8 +1,9 @@
 use std::fmt::Display;
 
+use miette::Error;
 use virtual_machine::program_builder::{Buildable, ProgramBuilder};
 
-use crate::{error::ALError, spanned::Spanned};
+use crate::spanned::Spanned;
 
 use super::{expression::Expr, type_def::TypeID};
 
@@ -41,7 +42,7 @@ impl Display for FunctionDecl {
 }
 
 impl Buildable for FunctionDecl {
-    type Error = ALError;
+    type Error = Error;
     fn build(&self, builder: &mut ProgramBuilder) -> Result<(), Self::Error> {
         self.body.build(builder)
     }
