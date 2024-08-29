@@ -180,8 +180,9 @@ impl Parser<'_> {
             Token::Identifier(Identifier::LBrace) => self.parse_block_expression(),
             Token::Identifier(Identifier::Return) => self.parse_return_expression(),
             Token::Identifier(Identifier::Break) => {
+                let span = self.peek()?.span;
                 self.consume();
-                Ok(Spanned::new(Expr::Break, self.peek()?.span))
+                Ok(Spanned::new(Expr::Break, span))
             }
             _ => {
                 let lhs = self.parse_primary_expression()?;

@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use miette::{Context, Error, IntoDiagnostic};
+use miette::{miette, Context, Error, IntoDiagnostic, LabeledSpan};
 use virtual_machine::{
     instruction::{
         args::{arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator},
@@ -161,14 +161,16 @@ impl Display for Expr {
     }
 }
 
-impl Buildable for Expr {
+impl Buildable for Spanned<Expr> {
     type Error = Error;
 
     fn build(
         &self,
         builder: &mut virtual_machine::program_builder::ProgramBuilder,
     ) -> Result<(), Self::Error> {
-        match self {
+        let expr = &self.value;
+        let span = self.span;
+        match expr {
             Expr::Dot { .. } => todo!(),
             Expr::FunctionCall(_, _) => todo!(),
             Expr::Binary(bin) => Self::compile_binary_expression(builder, bin),
@@ -194,13 +196,19 @@ impl Buildable for Expr {
                 return_expr.as_ref().map(AsRef::as_ref),
             ),
             Expr::Return(_) => todo!(),
-            Expr::Break => todo!(),
+            Expr::Break => match builder.get_break_block() {
+                Some(block) => builder.build_unconditional_jump(block).to_miette_error(),
+                None => Err(miette!(
+                    labels = vec![LabeledSpan::at(span, "here")],
+                    "Break outside of loop"
+                )),
+            },
             Expr::Continue => todo!(),
         }
     }
 }
 
-impl Expr {
+impl Spanned<Expr> {
     fn compile_block_expr(
         builder: &mut ProgramBuilder,
         statements: &[Spanned<Expr>],
@@ -360,6 +368,32 @@ impl Expr {
     }
 
     fn compile_loop(builder: &mut ProgramBuilder, body: &Spanned<Expr>) -> Result<(), Error> {
+        let loop_block = builder.append_block(Some("loop_block"));
+        let end_block = builder.append_block(Some("end_block"));
+
+        // Here could be a condition
+
+        // Set break and continue block
+        builder.set_break_block(end_block);
+        builder.set_continue_block(loop_block);
+
+        // Build block
+        builder
+            .block_insertion_point(loop_block)
+            .to_miette_error()?;
+        body.build(builder)?;
+
+        // Jump back to loop block
+        builder
+            .build_unconditional_jump(loop_block)
+            .to_miette_error()?;
+
+        // Reset the break and continue block
+        builder.pop_break_block();
+        builder.pop_continuer_block();
+
+        builder.block_insertion_point(end_block).to_miette_error()?;
+
         Ok(())
     }
 }

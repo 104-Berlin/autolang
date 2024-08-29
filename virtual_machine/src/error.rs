@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::program_builder::Block;
+
 pub type VMResult<T> = std::result::Result<T, VMError>;
 
 #[derive(Error, Debug)]
@@ -23,11 +25,11 @@ pub enum VMError {
     LabelNotFound(String),
 
     #[error("Block already defined '{0}'")]
-    BlockAlreadyDefined(usize),
+    BlockAlreadyDefined(Block),
 
     #[error("Unresolved label '{0}'")]
     UnresolvedLabel(String),
 
     #[error("Block ({0}) not found")]
-    BlockNotFound(usize),
+    BlockNotFound(Block),
 }

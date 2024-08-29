@@ -10,6 +10,8 @@ use crate::{
     memory::Memory,
 };
 
+pub type Block = usize;
+
 pub trait Buildable {
     type Error;
 
@@ -25,6 +27,9 @@ pub struct ProgramBuilder {
     labels: HashMap<String, u32>,
 
     blocks: Vec<String>,
+
+    current_continue_block: Option<Block>,
+    current_break_block: Option<Block>,
 }
 
 impl Default for ProgramBuilder {
@@ -35,6 +40,8 @@ impl Default for ProgramBuilder {
             unresolved: Vec::new(),
             labels: HashMap::new(),
             blocks: Vec::new(),
+            current_continue_block: None,
+            current_break_block: None,
         }
     }
 }
@@ -65,7 +72,7 @@ impl ProgramBuilder {
         }
     }
 
-    pub fn build_unconditional_jump(&mut self, block: usize) -> VMResult<()> {
+    pub fn build_unconditional_jump(&mut self, block: Block) -> VMResult<()> {
         let label = self.get_block_label(block)?;
 
         self.build_instruction_unresolved(UnresolvedInstruction::Jump {
@@ -74,7 +81,7 @@ impl ProgramBuilder {
         })
     }
 
-    pub fn build_conditional_jump(&mut self, block: usize, cond: JumpCondition) -> VMResult<()> {
+    pub fn build_conditional_jump(&mut self, block: Block, cond: JumpCondition) -> VMResult<()> {
         let label = self.get_block_label(block)?;
 
         self.build_instruction_unresolved(UnresolvedInstruction::Jump {
@@ -89,14 +96,14 @@ impl ProgramBuilder {
         Ok(())
     }
 
-    pub fn append_block(&mut self, label: Option<&'static str>) -> usize {
+    pub fn append_block(&mut self, label: Option<&'static str>) -> Block {
         let block_id = self.blocks.len() + 1;
         let label = format!("{}__block{}", label.unwrap_or(""), block_id);
         self.blocks.push(label);
         block_id
     }
 
-    pub fn block_insertion_point(&mut self, block: usize) -> VMResult<()> {
+    pub fn block_insertion_point(&mut self, block: Block) -> VMResult<()> {
         let block_label = self.get_block_label(block)?;
         if self.labels.contains_key(&block_label) {
             return Err(VMError::BlockAlreadyDefined(block));
@@ -105,6 +112,30 @@ impl ProgramBuilder {
         self.labels.insert(block_label, self.addr);
 
         Ok(())
+    }
+
+    pub fn set_continue_block(&mut self, block: Block) {
+        self.current_continue_block = Some(block);
+    }
+
+    pub fn pop_continuer_block(&mut self) {
+        self.current_continue_block = None;
+    }
+
+    pub fn get_continue_block(&self) -> Option<Block> {
+        self.current_continue_block
+    }
+
+    pub fn set_break_block(&mut self, block: Block) {
+        self.current_break_block = Some(block);
+    }
+
+    pub fn pop_break_block(&mut self) {
+        self.current_break_block = None;
+    }
+
+    pub fn get_break_block(&self) -> Option<Block> {
+        self.current_break_block
     }
 
     pub fn finish(mut self) -> VMResult<[u32; 1024]> {
@@ -123,7 +154,7 @@ impl ProgramBuilder {
         Ok(())
     }
 
-    fn get_block_label(&self, block: usize) -> VMResult<String> {
+    fn get_block_label(&self, block: Block) -> VMResult<String> {
         self.blocks
             .get(block - 1)
             .cloned()
