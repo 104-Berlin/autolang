@@ -222,9 +222,7 @@ impl Parser<'_> {
             .consume_checked(Token::Identifier(Identifier::Dot))
             .is_ok()
         {
-            let identifier = self.parse_user_defined_identifier()?;
-
-            let rhs = self.parse_expression_function_call_or_variable(identifier)?;
+            let rhs = self.parse_expression_function_call_or_variable()?;
             let span = span.union(&rhs.span);
 
             lhs = Spanned::new(
@@ -241,20 +239,18 @@ impl Parser<'_> {
 
     /// This parses everything that starts with an identifier. Variables, function calls, etc.
     fn parse_expression_identifier(&mut self) -> ALResult<Expr> {
-        let identifier = self.parse_user_defined_identifier()?;
-        match self.expect_token(Token::Identifier(Identifier::LBrace)) {
-            Ok(_) => self.parse_struct_literal(identifier),
-            Err(_) => self
-                .parse_expression_function_call_or_variable(identifier)
-                .map(|v| v.map_value(Into::into)),
-        }
+        self.try_parse(Self::parse_struct_literal)
+            .wrap_err("Parsing struct literal")
+            .or_else(|_| {
+                self.parse_expression_function_call_or_variable()
+                    .map(|e| e.map_value(Into::into))
+            })
     }
 
-    fn parse_struct_literal(&mut self, identifier: Spanned<String>) -> ALResult<Expr> {
-        self.consume_checked(Token::Identifier(Identifier::LBrace))?;
+    fn parse_struct_literal(&mut self) -> ALResult<Expr> {
+        let identifier = self.parse_user_defined_identifier()?;
 
-        self.input.pop_end();
-        self.input.push_end(); // Only becaus we know we are in try_parse
+        self.consume_checked(Token::Identifier(Identifier::LBrace))?;
 
         let mut fields = Vec::new();
         while !self.is_next_token(Token::Identifier(Identifier::RBrace)) {
@@ -278,10 +274,9 @@ impl Parser<'_> {
         Ok(Spanned::new(Expr::StructLiteral(identifier, fields), span))
     }
 
-    fn parse_expression_function_call_or_variable(
-        &mut self,
-        identifier: Spanned<String>,
-    ) -> ALResult<DotExpr> {
+    fn parse_expression_function_call_or_variable(&mut self) -> ALResult<DotExpr> {
+        let identifier = self.parse_user_defined_identifier()?;
+
         match self.consume_checked(Token::Identifier(Identifier::LParen)) {
             Ok(_) => {
                 let mut args = Vec::new();
@@ -438,8 +433,8 @@ impl Parser<'_> {
     fn parse_if_expression(&mut self) -> ALResult<Expr> {
         self.consume_checked(Token::Identifier(Identifier::If))?;
 
-        let if_condition = Box::new(self.parse_expression()?);
-        let if_block = Box::new(self.parse_block_expression()?);
+        let if_condition = Box::new(self.parse_expression().wrap_err("Parsing if condition")?);
+        let if_block = Box::new(self.parse_block_expression().wrap_err("Parse if block")?);
 
         let mut else_block = None;
 
@@ -447,7 +442,9 @@ impl Parser<'_> {
             .consume_checked(Token::Identifier(Identifier::Else))
             .is_ok()
         {
-            else_block = Some(Box::new(self.parse_expression()?));
+            else_block = Some(Box::new(
+                self.parse_expression().wrap_err("Parsing else block")?,
+            ));
         }
 
         let span = if_condition

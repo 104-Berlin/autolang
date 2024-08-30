@@ -44,6 +44,9 @@ impl Display for FunctionDecl {
 impl Buildable for FunctionDecl {
     type Error = Error;
     fn build(&self, builder: &mut ProgramBuilder) -> Result<(), Self::Error> {
+        // Push next pc to the stack for returning back to the function
+        // Set Base pointer to the current stack pointer
+
         self.body.build(builder)
     }
 }

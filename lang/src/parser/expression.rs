@@ -172,11 +172,11 @@ impl Buildable for Spanned<Expr> {
         let span = self.span;
         match expr {
             Expr::Dot { .. } => todo!(),
-            Expr::FunctionCall(_, _) => todo!(),
+            Expr::FunctionCall(callee, args) => todo!(),
             Expr::Binary(bin) => Self::compile_binary_expression(builder, bin),
             Expr::Literal(val) => Self::compile_literal(builder, val),
             Expr::StructLiteral(_, _) => todo!(),
-            Expr::Variable(_) => todo!(),
+            Expr::Variable(var) => Self::compile_var_expr(builder, var),
             Expr::Assignment(_, _) => todo!(),
             Expr::Let(symbol, typ, assign) => {
                 assign.build(builder)?;
@@ -221,6 +221,22 @@ impl Spanned<Expr> {
             return_expr.build(builder)?;
         }
         Ok(())
+    }
+
+    fn compile_var_expr(builder: &mut ProgramBuilder, var: &Spanned<String>) -> Result<(), Error> {
+        // We need to check if it is a local variable or a global variable
+        // fn test() {
+        //    let a = 10;
+        //    {
+        //        let b = a;
+        //    }
+        // }
+        //
+        // 0: BP
+        // 1: A
+        // 2: B
+
+        unimplemented!("Compile Var Expr")
     }
 
     fn compile_if_expr(
@@ -393,6 +409,35 @@ impl Spanned<Expr> {
         builder.pop_continuer_block();
 
         builder.block_insertion_point(end_block).to_miette_error()?;
+
+        Ok(())
+    }
+
+    fn compile_function_call(
+        builder: &mut ProgramBuilder,
+        callee: &Spanned<String>,
+        args: &[Spanned<Expr>],
+    ) -> Result<(), Error> {
+        // We need to push the arguments to the stack
+        for arg in args {
+            arg.build(builder)?; // Result should be in RA1
+            builder
+                .build_instruction(Instruction::Push(Register::RA1.into()))
+                .into_diagnostic()
+                .wrap_err("Building Function Call")?;
+        }
+
+        // Push next address to stack for returning back to the function
+        builder
+            .build_instruction(Instruction::Push(Register::PC.into()))
+            .into_diagnostic()
+            .wrap_err("Building Function Call")?;
+
+        // Push last base pointer to stack
+        builder
+            .build_instruction(Instruction::Push(Register::BP.into()))
+            .into_diagnostic()
+            .wrap_err("Building Function Call")?;
 
         Ok(())
     }

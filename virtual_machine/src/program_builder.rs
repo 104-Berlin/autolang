@@ -18,16 +18,31 @@ pub trait Buildable {
     fn build(&self, builder: &mut ProgramBuilder) -> Result<(), Self::Error>;
 }
 
+pub enum VarLocation {
+    Local(u32),
+    Global(u32),
+}
+
+#[derive(Debug, Default)]
+pub struct Scope {
+    // Own Base pointer offset
+    locals: Vec<u32>,
+}
+
 pub struct ProgramBuilder {
     /// For now 4kb programs? aka 1024 instructions and static values.
     /// Maybe we need some kind of resizable memory?
     memory: [u32; 1024],
     addr: u32,
     unresolved: Vec<(UnresolvedInstruction, u32)>,
+
     labels: HashMap<String, u32>,
 
+    // Some not yet defined labels
     blocks: Vec<String>,
+    scopes: Vec<Scope>,
 
+    current_block: Option<Block>, // Maybe not even option
     current_continue_block: Option<Block>,
     current_break_block: Option<Block>,
 }
@@ -40,6 +55,8 @@ impl Default for ProgramBuilder {
             unresolved: Vec::new(),
             labels: HashMap::new(),
             blocks: Vec::new(),
+            scopes: Vec::new(),
+            current_block: None,
             current_continue_block: None,
             current_break_block: None,
         }
@@ -90,6 +107,17 @@ impl ProgramBuilder {
         })
     }
 
+    pub fn build_local_var(&mut self) -> VMResult<()> {
+        // We need to know the current block
+        // Or we are in global scope
+        let Some(block) = self.current_block else {
+            // Global scope
+            return Ok(());
+        };
+
+        Ok(())
+    }
+
     pub fn add_value(&mut self, addr: u32, value: u32) -> VMResult<()> {
         self.memory.write(addr, value)?;
 
@@ -113,6 +141,12 @@ impl ProgramBuilder {
 
         Ok(())
     }
+
+    pub fn start_scope(&mut self) {
+        self.scopes.push(Scope::default());
+    }
+
+    pub fn end_scope(&mut self) {}
 
     pub fn set_continue_block(&mut self, block: Block) {
         self.current_continue_block = Some(block);

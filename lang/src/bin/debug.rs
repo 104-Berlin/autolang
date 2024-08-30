@@ -3,9 +3,11 @@ use miette::{Context, Error, IntoDiagnostic};
 use virtual_machine::machine::Machine;
 
 fn main() {
-    let input = "fn main() { if 1 { let c = 1; } }";
+    let input = "fn main() { if 1 >= asd { break; } }";
 
-    compile(input, false).unwrap();
+    if let Err(e) = compile(input, false) {
+        println!("{:?}", e.with_source_code(input));
+    }
 }
 
 fn compile<'a>(

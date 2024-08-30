@@ -28,6 +28,8 @@ pub enum Register {
     PC,
     // Stack Pointer
     SP,
+    // Base Pointer
+    BP,
     // Condition Register for some flags
     Cond,
 }
@@ -62,6 +64,7 @@ impl Display for Register {
             Register::RSC => "RSC",
             Register::PC => "PC",
             Register::SP => "SP",
+            Register::BP => "BP",
             Register::Cond => "Cond",
         };
 
@@ -92,6 +95,9 @@ pub struct RegisterStore {
     // Stack pointer
     sp: u32,
 
+    // Base pointer
+    bp: u32,
+
     // Condition register
     // State of last operation
     // ZERO, POSITIVE, NEGATIVE
@@ -120,6 +126,7 @@ impl RegisterStore {
             Register::RSC => self.rsc,
             Register::PC => self.pc,
             Register::SP => self.sp,
+            Register::BP => self.bp,
             Register::Cond => self.cond,
         }
     }
@@ -137,6 +144,7 @@ impl RegisterStore {
             Register::RSC => self.rsc = value,
             Register::PC => self.pc = value,
             Register::SP => self.sp = value,
+            Register::BP => self.bp = value,
             Register::Cond => self.cond = value,
         };
     }
@@ -228,6 +236,13 @@ impl Display for RegisterStore {
             Cell::new(&format!("{}", self.sp)),
             Cell::new(&format!("{:#X}", self.sp)),
             Cell::new(&format!("{:b}", self.sp)),
+        ]));
+        table.add_row(Row::new(vec![
+            Cell::new("BP"),
+            Cell::new(&format!("{}", self.bp as i32)),
+            Cell::new(&format!("{}", self.bp)),
+            Cell::new(&format!("{:#X}", self.bp)),
+            Cell::new(&format!("{:b}", self.bp)),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Cond"),
