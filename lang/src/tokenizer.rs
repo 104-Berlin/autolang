@@ -2,7 +2,6 @@ use std::iter::Peekable;
 
 use identifier::Identifier;
 use literal::Literal;
-use source_span::{DefaultMetrics, Span};
 use token::Token;
 
 use crate::{input_stream::InputStream, spanned::Spanned};
@@ -11,101 +10,130 @@ pub mod identifier;
 pub mod literal;
 pub mod token;
 
-pub struct Tokenizer {
-    input: Box<dyn InputStream<Output = char>>,
-    span: Span,
+/// A simple tokenizer that tokenizes a stream of characters into tokens.
+/// The tokenizer is implemented as an iterator that yields tokens.
+pub struct Tokenizer<'a> {
+    input: Box<dyn InputStream<Output = char> + 'a>,
+    offset: usize,
 }
 
-impl Tokenizer {
-    pub const METRICS: source_span::DefaultMetrics = DefaultMetrics::new();
-
-    pub fn new(input: impl InputStream<Output = char> + 'static) -> Self {
+impl<'a> Tokenizer<'a> {
+    /// Creates a new tokenizer with the given input stream.
+    /// The input stream must yield characters.
+    ///
+    /// # Example
+    /// ```
+    /// use lang::prelude::*;
+    ///
+    /// // Using a string as input
+    /// let input = "let x = 42;";
+    /// let tokenizer = Tokenizer::new(input);
+    ///
+    /// // Using a file as input
+    /// if let Ok(file) = std::fs::File::open("path/to/file") {
+    ///     let tokenizer = Tokenizer::new(FileInputStream::new(file));
+    /// }
+    ///
+    /// for token in tokenizer {
+    ///     // ...
+    /// }
+    /// ```
+    pub fn new(input: impl InputStream<Output = char> + 'a) -> Self {
         Self {
             input: Box::new(input),
-            span: Span::default(),
+            offset: 0,
         }
     }
 
+    /// Returns the next token in the input stream.
+    /// If the input stream is empty, `None` is returned.
     pub fn next_token(&mut self) -> Option<Spanned<Token>> {
         while let Some(c) = self.input.peek().filter(|c| c.is_whitespace()) {
+            self.offset += c.len_utf8();
             self.input.advance();
-            self.span.push(c, &Self::METRICS);
         }
 
         let current_char = self.input.next()?;
 
-        // Reset span, so it starts where it ends previously
-        self.span = self.span.next();
-
-        self.span.push(current_char, &Self::METRICS);
+        let start_offset = self.offset;
+        self.offset += current_char.len_utf8();
 
         match current_char {
             // '('
             '(' => Some(Spanned::new(
                 Token::Identifier(Identifier::LParen),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // ')'
             ')' => Some(Spanned::new(
                 Token::Identifier(Identifier::RParen),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '{'
             '{' => Some(Spanned::new(
                 Token::Identifier(Identifier::LBrace),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '}'
             '}' => Some(Spanned::new(
                 Token::Identifier(Identifier::RBrace),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '['
             '[' => Some(Spanned::new(
                 Token::Identifier(Identifier::LBracket),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // ']'
             ']' => Some(Spanned::new(
                 Token::Identifier(Identifier::RBracket),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '::'
             ':' if self.consume_checked(':').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::DoubleColon),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // ':'
             ':' => Some(Spanned::new(
                 Token::Identifier(Identifier::Colon),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // ';'
             ';' => Some(Spanned::new(
                 Token::Identifier(Identifier::Semicolon),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '.'
-            '.' => Some(Spanned::new(Token::Identifier(Identifier::Dot), self.span)),
+            '.' => Some(Spanned::new(
+                Token::Identifier(Identifier::Dot),
+                (start_offset, 1).into(),
+            )),
             // ','
             ',' => Some(Spanned::new(
                 Token::Identifier(Identifier::Comma),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '+'
-            '+' => Some(Spanned::new(Token::Identifier(Identifier::Plus), self.span)),
+            '+' => Some(Spanned::new(
+                Token::Identifier(Identifier::Plus),
+                (start_offset, 1).into(),
+            )),
             // '->'
             '-' if self.consume_checked('>').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::Arrow),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '-'
             '-' => Some(Spanned::new(
                 Token::Identifier(Identifier::Minus),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '*'
-            '*' => Some(Spanned::new(Token::Identifier(Identifier::Star), self.span)),
+            '*' => Some(Spanned::new(
+                Token::Identifier(Identifier::Star),
+                (start_offset, 1).into(),
+            )),
             // '//'
             '/' if self.consume_checked('/').is_some() => {
                 let _comment: String = self.consume_till("\n").into_iter().collect();
@@ -119,75 +147,85 @@ impl Tokenizer {
             // '/'
             '/' => Some(Spanned::new(
                 Token::Identifier(Identifier::Slash),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '%'
             '%' => Some(Spanned::new(
                 Token::Identifier(Identifier::Modulus),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '=='
             '=' if self.consume_checked('=').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::Equals),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '='
             '=' => Some(Spanned::new(
                 Token::Identifier(Identifier::Assignment),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '!='
             '!' if self.consume_checked('=').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::NotEquals),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '!'
             '!' => Some(Spanned::new(
                 Token::Identifier(Identifier::LogicalNot),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '&&'
             '&' if self.consume_checked('&').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::LogicalAnd),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '||'
             '|' if self.consume_checked('|').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::LogicalOr),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '<='
             '<' if self.consume_checked('=').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::LessThanOrEqual),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '<'
             '<' => Some(Spanned::new(
                 Token::Identifier(Identifier::LessThan),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '>='
             '>' if self.consume_checked('=').is_some() => Some(Spanned::new(
                 Token::Identifier(Identifier::GreaterThanOrEqual),
-                self.span,
+                (start_offset, 1).into(),
             )),
             // '>'
             '>' => Some(Spanned::new(
                 Token::Identifier(Identifier::GreaterThan),
-                self.span,
+                (start_offset, 1).into(),
             )),
-            '\"' => Some(self.parse_string_literal()),
-            c if c.is_numeric() => Some(self.parse_number_literal(current_char)),
-            c if c.is_alphabetic() || c == '_' => Some(self.parse_identifier(current_char)),
+            '\"' => Some(Spanned::new(
+                self.parse_string_literal(),
+                (start_offset, self.offset - start_offset).into(),
+            )),
+            c if c.is_numeric() => Some(Spanned::new(
+                self.parse_number_literal(current_char),
+                (start_offset, self.offset - start_offset).into(),
+            )),
+            c if c.is_alphabetic() || c == '_' => Some(Spanned::new(
+                self.parse_identifier(current_char),
+                (start_offset, self.offset - start_offset).into(),
+            )),
             _ => None,
         }
     }
 
-    fn parse_string_literal(&mut self) -> Spanned<Token> {
+    /// Parses a string literal. So everything between two double quotes.
+    fn parse_string_literal(&mut self) -> Token {
         let mut string = String::new();
 
         while let Some(c) = self.input.next() {
-            self.span.push(c, &Self::METRICS);
+            self.offset += c.len_utf8();
             if c == '"' {
                 break;
             } else if c == '\\' {
@@ -195,7 +233,7 @@ impl Tokenizer {
                     break;
                 };
 
-                self.span.push(next, &Self::METRICS);
+                self.offset += next.len_utf8();
 
                 if next == '\"' {
                     string.push('\"');
@@ -204,18 +242,21 @@ impl Tokenizer {
                 string.push(c);
             }
         }
-
-        Spanned::new(Token::Literal(Literal::String(string)), self.span)
+        Token::Literal(Literal::String(string))
     }
 
-    fn parse_number_literal(&mut self, first_char: char) -> Spanned<Token> {
+    /// Parses a number literal starting with the given character.
+    /// A number literal is a sequence of digits and an optional decimal point.
+    ///
+    /// Returns a `Token::Literal` with the parsed number.
+    fn parse_number_literal(&mut self, first_char: char) -> Token {
         let mut number = String::new();
         number.push(first_char);
 
         while let Some(c) = self.input.peek() {
             if c.is_numeric() || c == '.' {
                 number.push(c);
-                self.span.push(c, &Self::METRICS);
+                self.offset += c.len_utf8();
                 self.input.advance();
             } else {
                 break;
@@ -223,26 +264,22 @@ impl Tokenizer {
         }
 
         if number.contains('.') {
-            Spanned::new(
-                Token::Literal(Literal::NumberFloat(number.parse().unwrap())),
-                self.span,
-            )
+            Token::Literal(Literal::NumberFloat(number.parse().unwrap()))
         } else {
-            Spanned::new(
-                Token::Literal(Literal::NumberInt(number.parse().unwrap())),
-                self.span,
-            )
+            Token::Literal(Literal::NumberInt(number.parse().unwrap()))
         }
     }
 
-    fn parse_identifier(&mut self, first_char: char) -> Spanned<Token> {
+    /// Parses an identifier starting with the given character.
+    /// An identifier is a sequence of alphanumeric characters and underscores.
+    fn parse_identifier(&mut self, first_char: char) -> Token {
         let mut identifier = String::new();
         identifier.push(first_char);
 
         while let Some(c) = self.input.peek() {
             if c.is_alphanumeric() || c == '_' {
                 identifier.push(c);
-                self.span.push(c, &Self::METRICS);
+                self.offset += c.len_utf8();
                 self.input.advance();
             } else {
                 break;
@@ -251,20 +288,17 @@ impl Tokenizer {
 
         match identifier.as_str() {
             // Tokenizer boolean literal
-            "true" => Spanned::new(Token::Literal(Literal::Bool(true)), self.span),
-            "false" => Spanned::new(Token::Literal(Literal::Bool(false)), self.span),
-            _ => Spanned::new(
-                Token::Identifier(Identifier::from_string(identifier)),
-                self.span,
-            ),
+            "true" => Token::Literal(Literal::Bool(true)),
+            "false" => Token::Literal(Literal::Bool(false)),
+            _ => Token::Identifier(Identifier::from_string(identifier)),
         }
     }
 }
 
-impl Tokenizer {
+impl Tokenizer<'_> {
     fn consume_checked(&mut self, expected: char) -> Option<char> {
         self.input.consume_checked(expected).inspect(|c| {
-            self.span.push(*c, &Self::METRICS);
+            self.offset += c.len_utf8();
         })
     }
 
@@ -276,12 +310,12 @@ impl Tokenizer {
         let expected = expected.as_slice();
 
         while let Some(c) = self.input.next() {
-            self.span.push(c, &Self::METRICS);
+            self.offset += c.len_utf8();
             if c == expected[0] {
                 let mut found = true;
                 for e in &expected[1..] {
                     let next_input = self.input.next()?;
-                    self.span.push(next_input, &Self::METRICS);
+                    self.offset += next_input.len_utf8();
 
                     if next_input != *e {
                         found = false;
@@ -300,7 +334,7 @@ impl Tokenizer {
     }
 }
 
-impl Iterator for Tokenizer {
+impl Iterator for Tokenizer<'_> {
     type Item = Spanned<Token>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -308,19 +342,19 @@ impl Iterator for Tokenizer {
     }
 }
 
-pub struct TokenizerStream {
-    tokenizer: Peekable<Tokenizer>,
+pub struct TokenizerStream<'a> {
+    tokenizer: Peekable<Tokenizer<'a>>,
 }
 
-impl TokenizerStream {
-    pub fn new(input: impl InputStream<Output = char> + 'static) -> Self {
+impl<'a> TokenizerStream<'a> {
+    pub fn new(input: impl InputStream<Output = char> + 'a) -> Self {
         Self {
             tokenizer: Tokenizer::new(input).peekable(),
         }
     }
 }
 
-impl InputStream for TokenizerStream {
+impl InputStream for TokenizerStream<'_> {
     type Output = Spanned<Token>;
 
     fn next(&mut self) -> Option<Self::Output> {
