@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use scope::Scope;
+
 use crate::{
     error::{VMError, VMResult},
     instruction::{
@@ -8,7 +10,10 @@ use crate::{
         Instruction,
     },
     memory::Memory,
+    register::Register,
 };
+
+pub mod scope;
 
 pub type Block = usize;
 
@@ -19,14 +24,14 @@ pub trait Buildable {
 }
 
 pub enum VarLocation {
-    Local(u32),
-    Global(u32),
+    Local(u32),  // Offset from the base pointer
+    Global(u32), // Memory address
 }
 
-#[derive(Debug, Default)]
-pub struct Scope {
-    // Own Base pointer offset
-    locals: Vec<u32>,
+#[derive(Default)]
+pub struct SymbolTable {
+    globals: HashMap<String, u32>, // Stored in the memory of the programm. Probably need sections then
+    scopes: Option<Scope>,         // Can we make this non optional?
 }
 
 pub struct ProgramBuilder {
@@ -40,9 +45,8 @@ pub struct ProgramBuilder {
 
     // Some not yet defined labels
     blocks: Vec<String>,
-    scopes: Vec<Scope>,
+    symbol_table: SymbolTable,
 
-    current_block: Option<Block>, // Maybe not even option
     current_continue_block: Option<Block>,
     current_break_block: Option<Block>,
 }
@@ -55,8 +59,7 @@ impl Default for ProgramBuilder {
             unresolved: Vec::new(),
             labels: HashMap::new(),
             blocks: Vec::new(),
-            scopes: Vec::new(),
-            current_block: None,
+            symbol_table: SymbolTable::default(),
             current_continue_block: None,
             current_break_block: None,
         }
@@ -107,21 +110,36 @@ impl ProgramBuilder {
         })
     }
 
-    pub fn build_local_var(&mut self) -> VMResult<()> {
-        // We need to know the current block
-        // Or we are in global scope
-        let Some(block) = self.current_block else {
-            // Global scope
-            return Ok(());
-        };
+    // Expects the value for the var to be in RA1
+    pub fn build_local_var(&mut self, sym: String) -> VMResult<()> {
+        self.build_instruction(Instruction::Push(Register::RA1.into()))?;
+        // Push the var to the symbol table
+        self.symbol_table
+            .scopes
+            .as_mut()
+            .ok_or(VMError::NoScopeForVariable(sym.clone()))?
+            .push_variable(sym);
 
         Ok(())
     }
 
+    // This should be renamed to add global and use the symbol table
     pub fn add_value(&mut self, addr: u32, value: u32) -> VMResult<()> {
         self.memory.write(addr, value)?;
 
         Ok(())
+    }
+
+    pub fn find_var(&self, sym: &str) -> Option<VarLocation> {
+        if let Some(offset) = self.symbol_table.scopes.as_ref()?.get(sym) {
+            return Some(VarLocation::Local(offset));
+        }
+
+        if let Some(addr) = self.symbol_table.globals.get(sym) {
+            return Some(VarLocation::Global(*addr));
+        }
+
+        None
     }
 
     pub fn append_block(&mut self, label: Option<&'static str>) -> Block {
@@ -142,11 +160,20 @@ impl ProgramBuilder {
         Ok(())
     }
 
-    pub fn start_scope(&mut self) {
-        self.scopes.push(Scope::default());
+    pub fn push_scope(&mut self) {
+        match self.symbol_table.scopes.take() {
+            Some(scope) => {
+                self.symbol_table.scopes = Some(scope.new_child());
+            }
+            None => self.symbol_table.scopes = Some(Scope::new()),
+        }
     }
 
-    pub fn end_scope(&mut self) {}
+    pub fn pop_scope(&mut self) {
+        if let Some(scope) = self.symbol_table.scopes.take() {
+            self.symbol_table.scopes = scope.pop_child(); // Sets root to None if we are at the root
+        }
+    }
 
     pub fn set_continue_block(&mut self, block: Block) {
         self.current_continue_block = Some(block);

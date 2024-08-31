@@ -19,6 +19,8 @@ pub enum OpCode {
     Push, // Push a value onto the stack
     Pop,  // Pop a value from the stack
 
+    Move, // Move a value from a register to a memory location
+
     Compare,  // Compare two numbers
     LoadBool, // Load a boolean from the condition register to have a bool type
 

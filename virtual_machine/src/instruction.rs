@@ -2,7 +2,8 @@ use std::fmt::Display;
 
 use args::{
     arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
-    mem_offset::MemOffset, register_or_literal::RegisterOrLiteral, InstructionArg,
+    mem_offset::MemOffset, register_or_literal::RegisterOrLiteral,
+    register_pointer::RegisterPointer, InstructionArg,
 };
 use reader::InstructionReader;
 use writer::InstructionWriter;
@@ -15,6 +16,13 @@ pub mod opcode;
 pub mod reader;
 pub mod unresolved_instruction;
 pub mod writer;
+
+/// ```text
+///  31      26 25         20 19     0
+/// ┌──────────┬─────────────┬────────┐
+/// │  OPCODE  | REGISTER-A? |  REST  │
+/// └──────────┴─────────────┴────────┘
+/// ```
 
 #[derive(Debug)]
 pub enum Instruction {
@@ -51,6 +59,10 @@ pub enum Instruction {
     Jump {
         cond: JumpCondition,
         offset: MemOffset,
+    },
+    Move {
+        dst: Register,
+        src: RegisterPointer,
     },
 
     Push(RegisterOrLiteral),
@@ -100,6 +112,10 @@ impl InstructionArg for Instruction {
                 lhs: reader.read()?,
                 rhs: reader.read()?,
             }),
+            OpCode::Move => Ok(Instruction::Move {
+                dst: reader.read()?,
+                src: reader.read()?,
+            }),
             OpCode::Push => Ok(Instruction::Push(reader.read()?)),
             OpCode::Pop => Ok(Instruction::Pop(reader.read()?)),
         }
@@ -116,6 +132,7 @@ impl InstructionArg for Instruction {
             Self::Add { .. } => OpCode::Add,
             Self::Jump { .. } => OpCode::Jump,
             Self::Compare { .. } => OpCode::Compare,
+            Self::Move { .. } => OpCode::Move,
             Self::Push(_) => OpCode::Push,
             Self::Pop(_) => OpCode::Pop,
         });
@@ -146,6 +163,9 @@ impl InstructionArg for Instruction {
             Self::Compare { lhs, rhs } => {
                 writer = writer.write(lhs).write(rhs);
             }
+            Self::Move { dst, src } => {
+                writer = writer.write(dst).write(src);
+            }
             Self::Push(reg) => {
                 writer = writer.write(reg);
             }
@@ -170,6 +190,7 @@ impl Display for Instruction {
             Self::Add { dst, lhs, rhs } => write!(f, "Add {}, {}, {}", dst, lhs, rhs),
             Self::Jump { cond, offset } => write!(f, "Jump {:?} {:?}", cond, offset),
             Self::Compare { lhs, rhs } => write!(f, "Compare {}, {}", lhs, rhs),
+            Self::Move { dst, src } => write!(f, "Move {} => {:?}", dst, src),
             Self::Push(reg) => write!(f, "Push {}", reg),
             Self::Pop(reg) => write!(f, "Pop {}", reg),
         }

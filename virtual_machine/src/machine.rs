@@ -75,7 +75,7 @@ impl Machine {
         self.run_instruction(&instruction)?;
 
         if !self.cycle_changed_pc {
-            self.registers.set(Register::PC, instruction_pointer + 1);
+            self.registers.set(Register::PC, instruction_pointer + 4);
         }
 
         Ok(())
@@ -129,17 +129,22 @@ impl Machine {
                 self.registers.set(Register::RSC, lhs.wrapping_sub(rhs));
                 self.registers.update_condition(Register::RSC);
             }
+            Instruction::Move { dst, src } => {
+                let src = src.get_val(self);
+                let dst = dst.get_val(self);
+                self.memory.write(dst, src)?;
+            }
             Instruction::Push(reg) => {
                 let sp = self.registers.get(Register::SP);
                 let reg_val = reg.get_val(self);
                 self.memory.write(sp, reg_val)?;
-                self.registers.set(Register::SP, sp + 1);
+                self.registers.set(Register::SP, sp + 4);
             }
             Instruction::Pop(reg) => {
                 let sp = self.registers.get(Register::SP);
-                let reg_val = self.memory.read(sp - 1)?;
+                let reg_val = self.memory.read(sp - 4)?;
                 self.registers.set(reg, reg_val);
-                self.registers.set(Register::SP, sp - 1);
+                self.registers.set(Register::SP, sp - 4);
             }
         }
 

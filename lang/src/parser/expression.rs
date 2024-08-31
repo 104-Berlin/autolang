@@ -6,7 +6,7 @@ use virtual_machine::{
         args::{arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator},
         Instruction,
     },
-    program_builder::{Buildable, ProgramBuilder},
+    program_builder::{Buildable, ProgramBuilder, VarLocation},
     register::Register,
 };
 
@@ -178,13 +178,7 @@ impl Buildable for Spanned<Expr> {
             Expr::StructLiteral(_, _) => todo!(),
             Expr::Variable(var) => Self::compile_var_expr(builder, var),
             Expr::Assignment(_, _) => todo!(),
-            Expr::Let(symbol, typ, assign) => {
-                assign.build(builder)?;
-                builder
-                    .build_instruction(Instruction::Push(Register::RA1.into()))
-                    .into_diagnostic()
-                    .wrap_err("Building Let")
-            }
+            Expr::Let(symbol, typ, assign) => Self::compile_let_expr(builder, symbol, typ, assign),
             Expr::IfExpression {
                 if_block,
                 else_block,
@@ -214,13 +208,30 @@ impl Spanned<Expr> {
         statements: &[Spanned<Expr>],
         return_expr: Option<&Spanned<Expr>>,
     ) -> Result<(), Error> {
+        builder.push_scope();
         for statement in statements {
             statement.build(builder)?;
         }
         if let Some(return_expr) = return_expr {
             return_expr.build(builder)?;
         }
+        builder.pop_scope();
         Ok(())
+    }
+
+    fn compile_let_expr(
+        builder: &mut ProgramBuilder,
+        symbol: &Spanned<String>,
+        _typ: &Option<Spanned<TypeID>>,
+        assign: &Spanned<Expr>,
+    ) -> Result<(), Error> {
+        assign.build(builder)?;
+        // We need to register the variable in the symbol table
+
+        builder
+            .build_local_var(symbol.value.clone())
+            .into_diagnostic()
+            .wrap_err("Building Let")
     }
 
     fn compile_var_expr(builder: &mut ProgramBuilder, var: &Spanned<String>) -> Result<(), Error> {
@@ -236,7 +247,16 @@ impl Spanned<Expr> {
         // 1: A
         // 2: B
 
-        unimplemented!("Compile Var Expr")
+        match builder.find_var(&var.value) {
+            Some(VarLocation::Local(offset)) => {
+                todo!()
+            }
+            Some(VarLocation::Global(_addr)) => todo!("Global variables are not supported yet"),
+            None => Err(miette!(
+                labels = vec![LabeledSpan::at(var.span, "here")],
+                "Variable not found"
+            )),
+        }
     }
 
     fn compile_if_expr(

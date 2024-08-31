@@ -32,4 +32,7 @@ pub enum VMError {
 
     #[error("Block ({0}) not found")]
     BlockNotFound(Block),
+
+    #[error("No scope for variable '{0}' found")]
+    NoScopeForVariable(String),
 }
