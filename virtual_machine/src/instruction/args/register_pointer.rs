@@ -1,4 +1,10 @@
-use crate::{error::VMResult, register::Register, sign_extend};
+use crate::{
+    error::VMResult,
+    machine::Machine,
+    memory::Memory,
+    register::{Register, RegisterStore},
+    sign_extend,
+};
 
 use super::InstructionArg;
 
@@ -19,6 +25,18 @@ pub struct RegisterPointer {
     register: Register,
     /// 6 Bits
     offset: u8,
+}
+
+impl RegisterPointer {
+    pub fn read(&self, machine: &Machine) -> VMResult<u32> {
+        let address = machine.registers().get(self.register) as i32 + self.offset as i32;
+        machine.memory().read(address as u32)
+    }
+
+    pub fn write(&self, machine: &mut Machine, value: u32) -> VMResult<()> {
+        let address = machine.registers().get(self.register) as i32 + self.offset as i32;
+        machine.memory_mut().write(address as u32, value)
+    }
 }
 
 impl InstructionArg for RegisterPointer {

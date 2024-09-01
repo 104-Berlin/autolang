@@ -3,7 +3,7 @@ use std::fmt::Display;
 use args::{
     arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
     mem_offset::MemOffset, register_or_literal::RegisterOrLiteral,
-    register_pointer::RegisterPointer, InstructionArg,
+    register_or_register_pointer::RegisterOrRegisterPointer, InstructionArg,
 };
 use reader::InstructionReader;
 use writer::InstructionWriter;
@@ -28,20 +28,12 @@ pub mod writer;
 pub enum Instruction {
     Halt,
     Nop,
-    Load {
-        dst: Register,
-        offset: MemOffset,
-    },
     // This loads a bool from the condition register
     // This seems to be a bit of waste, but wanted to get it in for now
     // Maybe it works fine
     LoadBool {
         dst: Register,
         op: LogicalOperator,
-    },
-    Copy {
-        dst: Register,
-        src: Register,
     },
     Imm {
         dst: Register,
@@ -61,8 +53,8 @@ pub enum Instruction {
         offset: MemOffset,
     },
     Move {
-        dst: Register,
-        src: RegisterPointer,
+        dst: RegisterOrRegisterPointer,
+        src: RegisterOrRegisterPointer,
     },
 
     Push(RegisterOrLiteral),
@@ -83,10 +75,6 @@ impl InstructionArg for Instruction {
         match op_code {
             OpCode::Halt => Ok(Self::Halt),
             OpCode::Nop => Ok(Self::Nop),
-            OpCode::Load => Ok(Self::Load {
-                dst: reader.read()?,
-                offset: reader.read()?,
-            }),
             OpCode::LoadBool => Ok(Self::LoadBool {
                 dst: reader.read()?,
                 op: reader.read()?,
@@ -94,10 +82,6 @@ impl InstructionArg for Instruction {
             OpCode::Imm => Ok(Self::Imm {
                 dst: reader.read()?,
                 value: reader.read()?,
-            }),
-            OpCode::Copy => Ok(Self::Copy {
-                dst: reader.read()?,
-                src: reader.read()?,
             }),
             OpCode::Add => Ok(Self::Add {
                 dst: reader.read()?,
@@ -108,6 +92,7 @@ impl InstructionArg for Instruction {
                 cond: reader.read()?,
                 offset: reader.read()?,
             }),
+
             OpCode::Compare => Ok(Instruction::Compare {
                 lhs: reader.read()?,
                 rhs: reader.read()?,
@@ -125,10 +110,8 @@ impl InstructionArg for Instruction {
         let mut writer = InstructionWriter::new(match data {
             Self::Halt => OpCode::Halt,
             Self::Nop => OpCode::Nop,
-            Self::Load { .. } => OpCode::Load,
             Self::LoadBool { .. } => OpCode::LoadBool,
             Self::Imm { .. } => OpCode::Imm,
-            Self::Copy { .. } => OpCode::Copy,
             Self::Add { .. } => OpCode::Add,
             Self::Jump { .. } => OpCode::Jump,
             Self::Compare { .. } => OpCode::Compare,
@@ -140,17 +123,11 @@ impl InstructionArg for Instruction {
         match data {
             Self::Halt => (),
             Self::Nop => (),
-            Self::Load { dst, offset } => {
-                writer = writer.write(dst).write(offset);
-            }
             Self::LoadBool { dst, op } => {
                 writer = writer.write(dst).write(op);
             }
             Self::Imm { dst, value } => {
                 writer = writer.write(dst).write(value);
-            }
-            Self::Copy { dst, src } => {
-                writer = writer.write(dst).write(src);
             }
             Self::Add { dst, lhs, rhs } => {
                 writer = writer.write(dst).write(lhs).write(rhs);
@@ -183,14 +160,12 @@ impl Display for Instruction {
         match self {
             Self::Halt => write!(f, "Halt"),
             Self::Nop => write!(f, "Nop"),
-            Self::Load { dst, offset } => write!(f, "Load {}, {:?}", dst, offset),
             Self::LoadBool { dst, op } => write!(f, "LoadBool {}, {:?}", dst, op),
             Self::Imm { dst, value } => write!(f, "Imm {}, {}", dst, value.0),
-            Self::Copy { dst, src } => write!(f, "Copy {} => {}", dst, src),
             Self::Add { dst, lhs, rhs } => write!(f, "Add {}, {}, {}", dst, lhs, rhs),
             Self::Jump { cond, offset } => write!(f, "Jump {:?} {:?}", cond, offset),
             Self::Compare { lhs, rhs } => write!(f, "Compare {}, {}", lhs, rhs),
-            Self::Move { dst, src } => write!(f, "Move {} => {:?}", dst, src),
+            Self::Move { dst, src } => write!(f, "Move {:?} => {:?}", dst, src),
             Self::Push(reg) => write!(f, "Push {}", reg),
             Self::Pop(reg) => write!(f, "Pop {}", reg),
         }

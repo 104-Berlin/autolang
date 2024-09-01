@@ -30,10 +30,6 @@ fn main() -> VMResult<()> {
 fn prog_test(builder: &mut ProgramBuilder) -> VMResult<()> {
     builder.add_value(2999, 32)?;
 
-    builder.build_instruction(Instruction::Load {
-        dst: Register::RA1,
-        offset: MemOffset::from(-2i32 as u32),
-    })?;
     builder.build_instruction(Instruction::Imm {
         dst: Register::RA2,
         value: Arg20(-3i32 as u32),

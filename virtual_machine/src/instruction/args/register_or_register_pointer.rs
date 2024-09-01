@@ -4,7 +4,7 @@
 //! Used when you want to read from a specific address in memory.
 //! Mostly used by stack operations for functions calls and local variables.
 
-use crate::{error::VMResult, register::Register};
+use crate::{error::VMResult, machine::Machine, register::Register};
 
 use super::{register_pointer::RegisterPointer, InstructionArg};
 
@@ -24,6 +24,31 @@ use super::{register_pointer::RegisterPointer, InstructionArg};
 pub enum RegisterOrRegisterPointer {
     Register(Register),
     RegisterPointer(RegisterPointer),
+}
+
+impl RegisterOrRegisterPointer {
+    pub fn read(&self, machine: &Machine) -> VMResult<u32> {
+        match self {
+            Self::Register(register) => Ok(machine.registers().get(*register)),
+            Self::RegisterPointer(register_pointer) => register_pointer.read(machine),
+        }
+    }
+
+    pub fn write(&self, machine: &mut Machine, value: u32) -> VMResult<()> {
+        match self {
+            Self::Register(register) => {
+                machine.registers_mut().set(*register, value);
+                Ok(())
+            }
+            Self::RegisterPointer(register_pointer) => register_pointer.write(machine, value),
+        }
+    }
+}
+
+impl From<Register> for RegisterOrRegisterPointer {
+    fn from(register: Register) -> Self {
+        Self::Register(register)
+    }
 }
 
 impl InstructionArg for RegisterOrRegisterPointer {

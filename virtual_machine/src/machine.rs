@@ -1,6 +1,7 @@
 use crate::error::VMResult;
 use crate::instruction::args::logical_operator::LogicalOperator;
 use crate::instruction::args::mem_offset::MemOffset;
+use crate::instruction::args::register_or_register_pointer::RegisterOrRegisterPointer;
 use crate::instruction::{
     args::{
         arg20::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral,
@@ -88,13 +89,8 @@ impl Machine {
         match instr {
             Instruction::Halt => self.halt = true,
             Instruction::Nop => (),
-            Instruction::Load { dst, offset } => self.load(dst, offset)?,
             Instruction::LoadBool { dst, op } => self.load_bool(dst, op)?,
             Instruction::Imm { dst, value } => self.imm(dst, value),
-            Instruction::Copy { dst, src } => {
-                self.registers.set(dst, self.registers.get(src));
-                self.registers.update_condition(dst);
-            }
             Instruction::Add { dst, lhs, rhs } => self.add(dst, lhs, rhs),
             Instruction::Jump { cond, offset } => {
                 let cond_flags = self.registers.get(Register::Cond) as u8;
@@ -130,10 +126,7 @@ impl Machine {
                 self.registers.update_condition(Register::RSC);
             }
             Instruction::Move { dst, src } => {
-                unimplemented!()
-                // let src = src.get_val(self);
-                // let dst = dst.get_val(self);
-                // self.memory.write(dst, src)?;
+                self.mov(dst, src)?;
             }
             Instruction::Push(reg) => {
                 let sp = self.registers.get(Register::SP);
@@ -160,12 +153,20 @@ impl Machine {
         &mut self.registers
     }
 
-    fn load(&mut self, dst: Register, offset: MemOffset) -> VMResult<()> {
-        let ip = self.registers.get(Register::PC);
-        let addr = (ip as u64 + sign_extend(*offset, 20) as u64) as u32;
-        let addr = self.memory.read(addr)?;
-        self.registers.set(dst, addr);
-        self.registers.update_condition(dst);
+    pub fn memory(&self) -> &dyn Memory {
+        &*self.memory
+    }
+
+    pub fn memory_mut(&mut self) -> &mut dyn Memory {
+        &mut *self.memory
+    }
+
+    fn mov(
+        &mut self,
+        dst: RegisterOrRegisterPointer,
+        src: RegisterOrRegisterPointer,
+    ) -> VMResult<()> {
+        dst.write(self, src.read(self)?)?;
         Ok(())
     }
 

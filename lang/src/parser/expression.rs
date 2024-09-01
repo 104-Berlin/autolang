@@ -202,6 +202,42 @@ impl Buildable for Spanned<Expr> {
     }
 }
 
+// Guessing return types
+
+impl DotExpr {
+    pub fn guess_return_type(&self, builder: &mut ProgramBuilder) -> TypeID {
+        match self {
+            DotExpr::FunctionCall(_, _) => todo!(),
+            DotExpr::Variable(name) => todo!(),
+        }
+    }
+}
+
+impl Expr {
+    pub fn guess_return_type(&self, builder: &mut ProgramBuilder) -> TypeID {
+        match self {
+            Expr::Dot { .. } => None,
+            Expr::FunctionCall(_, _) => None,
+            Expr::Binary(_) => None,
+            Expr::Literal(_) => None,
+            Expr::StructLiteral(_, _) => None,
+            Expr::Variable(_) => None,
+            Expr::Assignment(_, _) => None,
+            Expr::Let(_, typ, _) => typ.clone().map(|t| t.value),
+            Expr::IfExpression { .. } => None,
+            Expr::Loop(_) => None,
+            Expr::Block(_, return_expr) => return_expr
+                .as_ref()
+                .and_then(|e| e.value.guess_return_type(builder)),
+            Expr::Return(expr) => expr
+                .as_ref()
+                .and_then(|e| e.value.guess_return_type(builder)),
+            Expr::Break => None,
+            Expr::Continue => None,
+        }
+    }
+}
+
 impl Spanned<Expr> {
     fn compile_block_expr(
         builder: &mut ProgramBuilder,
@@ -317,9 +353,9 @@ impl Spanned<Expr> {
         // Load RHS into RA1 and LHS into RA2
         bin.lhs.build(builder)?;
         builder
-            .build_instruction(Instruction::Copy {
-                dst: Register::RA2,
-                src: Register::RA1,
+            .build_instruction(Instruction::Move {
+                dst: Register::RA2.into(),
+                src: Register::RA1.into(),
             })
             .into_diagnostic()
             .wrap_err("Building Binary Expression")?;
