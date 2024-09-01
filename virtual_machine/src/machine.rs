@@ -130,9 +130,10 @@ impl Machine {
                 self.registers.update_condition(Register::RSC);
             }
             Instruction::Move { dst, src } => {
-                let src = src.get_val(self);
-                let dst = dst.get_val(self);
-                self.memory.write(dst, src)?;
+                unimplemented!()
+                // let src = src.get_val(self);
+                // let dst = dst.get_val(self);
+                // self.memory.write(dst, src)?;
             }
             Instruction::Push(reg) => {
                 let sp = self.registers.get(Register::SP);

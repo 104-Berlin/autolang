@@ -5,6 +5,7 @@ pub mod jump_cond;
 pub mod logical_operator;
 pub mod mem_offset;
 pub mod register_or_literal;
+pub mod register_or_register_pointer;
 pub mod register_pointer;
 pub mod unused;
 
@@ -12,15 +13,19 @@ pub trait InstructionArg {
     const BIT_SIZE: u32;
 
     /// Match the instruction from the bytes
-    /// The bit_offset is used to skip the bits that are not part of the instruction
-    /// We are cutting all the bits that are not part of the instruction and put the instruction in the first bits
+    ///
+    /// The data starts at the most right. The lowest [`Self::BIT_SIZE`] bits are the data.
+    ///
+    /// If the arg is just a simple u8, then you can use plain 'as' casting
     fn match_from_bytes(data: u32) -> VMResult<Self>
     where
         Self: Sized;
 
     /// Match the instruction to the bytes
+    ///
     /// This is used to convert the instruction back to the bytes
-    /// The data should be on the most right side with BIT_SIZE bits
+    ///
+    /// The data should be on the most right side with [`Self::BIT_SIZE`] bits
     fn match_to_bytes(data: Self) -> u32;
 
     fn from_instruction(instruction: u32, bit_offset: u32) -> VMResult<Self>

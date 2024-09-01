@@ -22,7 +22,7 @@ pub mod register;
 
 pub fn sign_extend(value: u32, from: u32) -> u32 {
     if (value >> (from - 1)) & 1 != 0 {
-        value | (0xffffffff << from)
+        value | (0xffff_ffff << from)
     } else {
         value
     }

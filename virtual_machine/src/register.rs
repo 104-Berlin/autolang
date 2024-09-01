@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// # 6 Bit
-#[derive(Debug, Clone, Copy, TryFromPrimitive, IntoPrimitive)]
+#[derive(Debug, Clone, Copy, TryFromPrimitive, IntoPrimitive, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Register {
     // General Purpose Registers
