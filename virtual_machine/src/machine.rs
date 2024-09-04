@@ -34,13 +34,15 @@ impl Default for Machine {
 }
 
 impl Machine {
-    pub const STACK_START: u32 = 0x0300;
-    pub const PROGRAM_START: u32 = 0x0BBB;
+    pub const STACK_START: u32 = 0x0300; // Musst be devisable by 4
+    pub const PROGRAM_START: u32 = 0x0BBC; // Musst be devisable by 4
 
     pub fn load_program(mut self, program: &[u32]) -> VMResult<Self> {
         for (i, instr) in program.iter().enumerate() {
-            self.memory.write(Self::PROGRAM_START + i as u32, *instr)?;
+            self.memory
+                .write(Self::PROGRAM_START + (i * 4) as u32, *instr)?;
         }
+
         Ok(self)
     }
 
@@ -68,6 +70,7 @@ impl Machine {
         }
 
         let instruction_pointer = self.registers.get(Register::PC);
+
         let instruction = self.memory.read(instruction_pointer)?;
 
         self.cycle_changed_pc = false;
@@ -209,7 +212,7 @@ impl Machine {
         while sp < end {
             let val = self.memory.read(sp).unwrap();
             println!("0x{:04x}: {}", sp, val);
-            sp += 1;
+            sp += 4;
         }
     }
 }

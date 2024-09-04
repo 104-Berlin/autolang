@@ -61,7 +61,8 @@ fn compile<'a>(
     step_mode: bool,
 ) -> Result<Machine, Error> {
     let module = Parser::new(input).parse_module()?;
-    let program = Compiler::default().compile(&module)?;
+    let mut program = Compiler::default().compile(&module)?;
+
     OpenOptions::new()
         .write(true)
         .truncate(true)

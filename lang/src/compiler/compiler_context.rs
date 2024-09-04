@@ -77,7 +77,7 @@ impl CompilerContext {
         // How do i write via the memory trait?
         Memory::write(&mut self.memory, self.addr, instr).into_diagnostic()?;
 
-        self.addr += 1;
+        self.addr += 4;
         Ok(().with_span(instruction.span))
     }
 
@@ -91,7 +91,7 @@ impl CompilerContext {
             Err(_) => {
                 let span = instruction.span;
                 self.unresolved.push((instruction, self.addr));
-                self.addr += 1;
+                self.addr += 4;
                 Ok(().with_span(span))
             }
         }

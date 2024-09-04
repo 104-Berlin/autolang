@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::error::{VMError, VMResult};
 
 /// For byte memory trait.
@@ -116,10 +118,22 @@ pub trait Memory {
         self.write4(address, value as u32)?;
         self.write4(address + 4, (value >> 32) as u32)
     }
+
+    fn dump(&self, range: Range<usize>) {
+        for i in range {
+            match self.read(i as u32) {
+                Ok(value) => println!("{:08x}: {:08x}", i, value),
+                Err(_) => break,
+            }
+        }
+    }
 }
 
 impl<T: AsRef<[u32]> + AsMut<[u32]>> Memory for T {
     fn read(&self, address: u32) -> VMResult<u32> {
+        assert_eq!(address % 4, 0);
+        let address = address / 4;
+
         self.as_ref()
             .get(address as usize)
             .copied()

@@ -2,8 +2,8 @@ Imm RA1, 0
 Push RA1
 Imm RA1, 4
 Push RA1
-Jump Always MemOffset { offset: 2 }
-Jump Always MemOffset { offset: 1048573 }
+Jump Always MemOffset { offset: 8 }
+Jump Always MemOffset { offset: 1048564 }
 Halt
 Halt
 Halt
