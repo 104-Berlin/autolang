@@ -16,9 +16,9 @@ use super::InstructionArg;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegisterPointer {
     /// 6 Bits
-    register: Register,
+    pub register: Register,
     /// 6 Bits
-    offset: u8,
+    pub offset: u8,
 }
 
 impl RegisterPointer {
@@ -40,7 +40,8 @@ impl InstructionArg for RegisterPointer {
     where
         Self: Sized,
     {
-        let register = Register::match_from_bytes(data >> 6)?;
+        let register_data = (data >> 6) & 0x3f;
+        let register = Register::match_from_bytes(register_data)?;
         let offset = sign_extend(data & 0x3f, 6) as u8;
 
         Ok(Self { register, offset })

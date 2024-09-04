@@ -51,14 +51,26 @@ impl From<Register> for RegisterOrRegisterPointer {
     }
 }
 
+impl From<RegisterPointer> for RegisterOrRegisterPointer {
+    fn from(register_pointer: RegisterPointer) -> Self {
+        Self::RegisterPointer(register_pointer)
+    }
+}
+
+//          |           ARG1        |           ARG2           |
+//          |                       |                          |
+//  MOVE      PTR  REGISTER  OFFSET      PTR  REGISTER  OFFSET
+// 000110      0    000000   000000       1    001011   000000
+
 impl InstructionArg for RegisterOrRegisterPointer {
-    const BIT_SIZE: u32 = 12;
+    const BIT_SIZE: u32 = 13;
 
     fn match_from_bytes(data: u32) -> VMResult<Self>
     where
         Self: Sized,
     {
         let is_pointer = (data >> 12) & 0x1 == 1;
+        println!("Matching from ({is_pointer}) {:8x}", data >> 12);
 
         match is_pointer {
             true => {

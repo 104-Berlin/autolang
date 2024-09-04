@@ -1,7 +1,4 @@
 fn main() {
-    let z = 0;
-    loop {
-        let c = 4;
-        break;
-    }
+    let a = 2;
+    let b = a + 4;
 }

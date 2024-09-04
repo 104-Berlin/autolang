@@ -120,8 +120,13 @@ pub trait Memory {
     }
 
     fn dump(&self, range: Range<usize>) {
+        let size = range.end - range.start;
+        let size = size as u32 / 4;
+        let start = range.start as u32;
+
+        let range: Range<u32> = 0..size;
         for i in range {
-            match self.read(i as u32) {
+            match self.read(start + (i * 4)) {
                 Ok(value) => println!("{:08x}: {:08x}", i, value),
                 Err(_) => break,
             }

@@ -3,7 +3,11 @@ use std::fmt::Display;
 use miette::{miette, Context, LabeledSpan, SourceSpan};
 use virtual_machine::{
     instruction::{
-        args::{arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator},
+        args::{
+            arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
+            register_or_register_pointer::RegisterOrRegisterPointer,
+            register_pointer::RegisterPointer,
+        },
         Instruction,
     },
     register::Register,
@@ -176,7 +180,7 @@ impl Buildable for Spanned<Expr> {
             Expr::Binary(bin) => Self::compile_binary_expression(builder, bin),
             Expr::Literal(val) => Self::compile_literal(builder, val),
             Expr::StructLiteral(_, _) => todo!(),
-            Expr::Variable(var) => Self::compile_var_expr(builder, var),
+            Expr::Variable(var) => Self::compile_var_expr(builder, var, span),
             Expr::Assignment(_, _) => todo!(),
             Expr::Let(symbol, typ, assign) => Self::compile_let_expr(builder, symbol, typ, assign),
             Expr::IfExpression {
@@ -221,15 +225,23 @@ impl Spanned<Expr> {
         match &self.value {
             Expr::Dot { .. } => unimplemented!(),
             Expr::FunctionCall(_, _) => unimplemented!(),
-            Expr::Binary(_) => unimplemented!(),
-            Expr::Literal(_) => unimplemented!(),
+            Expr::Binary(bin) => bin.guess_return_type(builder),
+            Expr::Literal(lit) => {
+                let typ = match lit.value {
+                    Literal::NumberInt(_) => TypeID::Int,
+                    Literal::NumberFloat(_) => TypeID::Float,
+                    Literal::String(_) => TypeID::String,
+                    Literal::Bool(_) => TypeID::Bool,
+                };
+                Ok(typ.with_span(own_span))
+            }
             Expr::StructLiteral(_, _) => unimplemented!(),
             Expr::Variable(name) => {
                 let var = builder.find_var(name).ok_or(miette!(
                     labels = vec![LabeledSpan::at(name.span, "here")],
                     "Variable not found"
                 ))?;
-                todo!()
+                Ok(var.1.with_span(name.span))
             }
             Expr::Assignment(_, _) => unimplemented!(),
             Expr::Let(_, _, _) => Ok(TypeID::Void.with_span(own_span)),
@@ -303,16 +315,40 @@ impl Spanned<Expr> {
     fn compile_let_expr(
         builder: &mut CompilerContext,
         symbol: &Spanned<String>,
-        _typ: &Option<Spanned<TypeID>>,
+        typ: &Option<Spanned<TypeID>>,
         assign: &Spanned<Expr>,
     ) -> ALResult<()> {
+        // First we need to check to types
+        let expr_type = assign.guess_return_type(builder)?;
+        let types_match = typ
+            .as_ref()
+            .map(|t| t.value == expr_type.value)
+            .unwrap_or(true);
+
+        if !types_match {
+            return Err(miette!(
+                labels = vec![
+                    LabeledSpan::at(symbol.span, "here"),
+                    LabeledSpan::at(typ.as_ref().unwrap().span, "expected type"),
+                    LabeledSpan::at(assign.span, "assigned type")
+                ],
+                "Type mismatch"
+            ));
+        }
+
         assign.build(builder)?;
         // We need to register the variable in the symbol table
 
-        miette::Context::wrap_err(builder.build_local_var(symbol), "Building Let")
+        builder
+            .build_local_var(symbol, expr_type.value)
+            .wrap_err("Building Let")
     }
 
-    fn compile_var_expr(builder: &mut CompilerContext, var: &Spanned<String>) -> ALResult<()> {
+    fn compile_var_expr(
+        builder: &mut CompilerContext,
+        var: &Spanned<String>,
+        span: SourceSpan,
+    ) -> ALResult<()> {
         // We need to check if it is a local variable or a global variable
         // fn test() {
         //    let a = 10;
@@ -326,10 +362,27 @@ impl Spanned<Expr> {
         // 2: B
 
         match builder.find_var(var) {
-            Some(VarLocation::Local(offset)) => {
-                todo!()
+            Some((VarLocation::Local(offset), _)) => {
+                println!("Found local variable at offset {}", offset);
+
+                // For now we load the value from the base_pointer + offset into RA1
+                let bp = RegisterPointer {
+                    register: Register::BP,
+                    offset: offset as u8,
+                };
+
+                builder.build_instruction(
+                    Instruction::Move {
+                        dst: Register::RA1.into(),
+                        src: RegisterOrRegisterPointer::RegisterPointer(bp),
+                    }
+                    .with_span(span),
+                )?;
+                Ok(().with_span(span))
             }
-            Some(VarLocation::Global(_addr)) => todo!("Global variables are not supported yet"),
+            Some((VarLocation::Global(_addr), typ)) => {
+                todo!("Global variables are not supported yet")
+            }
             None => Err(miette!(
                 labels = vec![LabeledSpan::at(var.span, "here")],
                 "Variable not found"
@@ -358,7 +411,7 @@ impl Spanned<Expr> {
         if_cond.0.build(builder)?; // Bool value in RA1
 
         // Jump to if block
-        builder.build_conditional_jump(if_block, JumpCondition::NotZero, if_span_complete)?;
+        builder.build_conditional_jump(if_block, JumpCondition::NotZero, if_span_cond)?;
         // Jump to else block or end of if in case of no else block
         builder.build_unconditional_jump(
             else_block,

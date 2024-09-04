@@ -164,7 +164,7 @@ impl Display for Instruction {
             Self::Add { dst, lhs, rhs } => write!(f, "Add {}, {}, {}", dst, lhs, rhs),
             Self::Jump { cond, offset } => write!(f, "Jump {:?} {:?}", cond, offset),
             Self::Compare { lhs, rhs } => write!(f, "Compare {}, {}", lhs, rhs),
-            Self::Move { dst, src } => write!(f, "Move {:?} => {:?}", dst, src),
+            Self::Move { dst, src } => write!(f, "Move {:?} => {:?}", src, dst),
             Self::Push(reg) => write!(f, "Push {}", reg),
             Self::Pop(reg) => write!(f, "Pop {}", reg),
         }

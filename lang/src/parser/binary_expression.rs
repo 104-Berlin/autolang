@@ -4,6 +4,7 @@ use miette::{miette, Error, LabeledSpan};
 
 use crate::{
     compiler::compiler_context::{Buildable, CompilerContext},
+    prelude::TypeID,
     spanned::Spanned,
     tokenizer::{identifier::Identifier, token::Token},
     ALResult,
@@ -50,6 +51,25 @@ impl BinaryExpression {
 impl Buildable for BinaryExpression {
     fn build(&self, _builder: &mut CompilerContext) -> ALResult<()> {
         unimplemented!()
+    }
+}
+
+impl Spanned<BinaryExpression> {
+    pub fn guess_return_type(&self, builder: &mut CompilerContext) -> ALResult<TypeID> {
+        let lhs_type = self.lhs.guess_return_type(builder)?;
+        let rhs_type = self.rhs.guess_return_type(builder)?;
+
+        if *lhs_type == *rhs_type {
+            Ok(lhs_type)
+        } else {
+            Err(miette!(
+                labels = vec![
+                    LabeledSpan::at(self.lhs.span, "LHS"),
+                    LabeledSpan::at(self.rhs.span, "RHS"),
+                ],
+                "Binary expression types do not match"
+            ))
+        }
     }
 }
 

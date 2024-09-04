@@ -3,7 +3,7 @@ use miette::{Context, Error, IntoDiagnostic};
 use virtual_machine::machine::Machine;
 
 fn main() {
-    let input = "fn main() { let z = 0; loop { break; } }";
+    let input = "fn main() { let a = 2; let b = a; }";
 
     if let Err(e) = compile(input, false) {
         println!("{:?}", e.with_source_code(input));

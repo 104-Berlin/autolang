@@ -3,12 +3,14 @@
 
 use std::collections::HashMap;
 
+use crate::prelude::TypeID;
+
 #[derive(Debug, Default)]
 pub struct Scope {
     // Current Base pointer offset
     current_offset: u32,
 
-    locals: HashMap<String, u32>,
+    locals: HashMap<String, (u32, TypeID)>,
 
     parent: Option<Box<Scope>>,
 }
@@ -41,16 +43,16 @@ impl Scope {
         }
     }
 
-    pub fn push_variable(&mut self, name: String) -> u32 {
+    pub fn push_variable(&mut self, name: String, typ: TypeID) -> u32 {
         let offset = self.current_offset;
-        self.locals.insert(name, offset);
+        self.locals.insert(name, (offset, typ));
         self.current_offset += 4; // Advance 32 bits
         offset
     }
 
-    pub fn get(&self, name: &str) -> Option<u32> {
+    pub fn get(&self, name: &str) -> Option<(u32, TypeID)> {
         if let Some(offset) = self.locals.get(name) {
-            return Some(*offset);
+            return Some((offset.0, offset.1.clone()));
         }
 
         if let Some(parent) = &self.parent {

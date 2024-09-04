@@ -1,8 +1,10 @@
 use std::fmt::Display;
 
+use virtual_machine::{instruction::Instruction, register::Register};
+
 use crate::{
     compiler::compiler_context::{Buildable, CompilerContext},
-    spanned::Spanned,
+    spanned::{Spanned, WithSpan},
     ALResult,
 };
 
@@ -42,10 +44,21 @@ impl Display for FunctionDecl {
     }
 }
 
-impl Buildable for FunctionDecl {
+impl Buildable for Spanned<FunctionDecl> {
     fn build(&self, builder: &mut CompilerContext) -> ALResult<()> {
         // Push next pc to the stack for returning back to the function
         // Set Base pointer to the current stack pointer
+
+        builder.build_instruction(Instruction::Push(Register::PC.into()).with_span(self.span))?;
+
+        builder.build_instruction(
+            Instruction::Move {
+                // SP -> BP
+                src: Register::SP.into(),
+                dst: Register::BP.into(),
+            }
+            .with_span(self.span),
+        )?;
 
         self.body.build(builder)
     }

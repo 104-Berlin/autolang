@@ -53,6 +53,8 @@ impl Machine {
     }
 
     pub fn run(mut self, step_mode: bool) -> VMResult<Self> {
+        self.memory
+            .dump(Self::PROGRAM_START as usize..Self::PROGRAM_START as usize + 32);
         while !self.halt {
             self.step()?;
             if step_mode {

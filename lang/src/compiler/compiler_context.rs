@@ -11,7 +11,7 @@ use virtual_machine::{
 };
 
 use crate::{
-    prelude::Spanned,
+    prelude::{Spanned, TypeID},
     spanned::{SpanExt, WithSpan},
     ALResult,
 };
@@ -34,8 +34,8 @@ pub enum VarLocation {
 
 #[derive(Default)]
 pub struct SymbolTable {
-    globals: HashMap<String, u32>, // Stored in the memory of the programm. Probably need sections then
-    scopes: Option<Scope>,         // Can we make this non optional?
+    globals: HashMap<String, (u32, TypeID)>, // Stored in the memory of the programm. Probably need sections then
+    scopes: Option<Scope>,                   // Can we make this non optional?
 }
 
 pub struct CompilerContext {
@@ -127,7 +127,7 @@ impl CompilerContext {
     }
 
     // Expects the value for the var to be in RA1
-    pub fn build_local_var(&mut self, sym: &Spanned<String>) -> ALResult<()> {
+    pub fn build_local_var(&mut self, sym: &Spanned<String>, typ: TypeID) -> ALResult<()> {
         self.build_instruction(Instruction::Push(Register::RA1.into()).with_span(sym.span))?;
         // Push the var to the symbol table
         self.symbol_table
@@ -137,18 +137,18 @@ impl CompilerContext {
                 labels = vec![LabeledSpan::at(sym.span, ""),],
                 "You are in the top level scope. You can't define a local variable here."
             ))?
-            .push_variable((**sym).clone());
+            .push_variable((**sym).clone(), typ);
 
         Ok(().with_span(sym.span))
     }
 
-    pub fn find_var(&self, sym: &Spanned<String>) -> Option<VarLocation> {
-        if let Some(offset) = self.symbol_table.scopes.as_ref()?.get(sym) {
-            return Some(VarLocation::Local(offset));
+    pub fn find_var(&self, sym: &Spanned<String>) -> Option<(VarLocation, TypeID)> {
+        if let Some((offset, typ)) = self.symbol_table.scopes.as_ref()?.get(sym) {
+            return Some((VarLocation::Local(offset), typ));
         }
 
-        if let Some(addr) = self.symbol_table.globals.get(&**sym) {
-            return Some(VarLocation::Global(*addr));
+        if let Some((addr, typ)) = self.symbol_table.globals.get(&**sym) {
+            return Some((VarLocation::Global(*addr), typ.clone()));
         }
 
         None
