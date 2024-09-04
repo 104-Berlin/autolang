@@ -1,6 +1,5 @@
 use crate::error::VMResult;
 use crate::instruction::args::logical_operator::LogicalOperator;
-use crate::instruction::args::mem_offset::MemOffset;
 use crate::instruction::args::register_or_register_pointer::RegisterOrRegisterPointer;
 use crate::instruction::{
     args::{

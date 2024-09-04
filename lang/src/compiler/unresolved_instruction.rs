@@ -6,8 +6,6 @@ use virtual_machine::instruction::{
     Instruction,
 };
 
-use crate::ALResult;
-
 pub enum Unresolved<T> {
     Unresolved(String),
     Resolved(T),
@@ -21,7 +19,11 @@ pub enum UnresolvedInstruction {
 }
 
 impl UnresolvedInstruction {
-    pub fn resolved(&self, own_addr: u32, labels: &HashMap<String, u32>) -> ALResult<Instruction> {
+    pub fn resolved(
+        &self,
+        own_addr: u32,
+        labels: &HashMap<String, u32>,
+    ) -> Result<Instruction, miette::Error> {
         Ok(match self {
             UnresolvedInstruction::Jump { cond, offset } => match offset {
                 Unresolved::Resolved(offset) => Instruction::Jump {

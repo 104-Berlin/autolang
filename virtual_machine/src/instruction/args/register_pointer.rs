@@ -1,10 +1,4 @@
-use crate::{
-    error::VMResult,
-    machine::Machine,
-    memory::Memory,
-    register::{Register, RegisterStore},
-    sign_extend,
-};
+use crate::{error::VMResult, machine::Machine, register::Register, sign_extend};
 
 use super::InstructionArg;
 

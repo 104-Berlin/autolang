@@ -1,11 +1,12 @@
 use std::fmt::Display;
 
 use miette::{miette, Error, LabeledSpan};
-use virtual_machine::program_builder::{Buildable, ProgramBuilder};
 
 use crate::{
+    compiler::compiler_context::{Buildable, CompilerContext},
     spanned::Spanned,
     tokenizer::{identifier::Identifier, token::Token},
+    ALResult,
 };
 
 use super::expression::Expr;
@@ -47,9 +48,7 @@ impl BinaryExpression {
 }
 
 impl Buildable for BinaryExpression {
-    type Error = Error;
-
-    fn build(&self, _builder: &mut ProgramBuilder) -> Result<(), Self::Error> {
+    fn build(&self, _builder: &mut CompilerContext) -> ALResult<()> {
         unimplemented!()
     }
 }

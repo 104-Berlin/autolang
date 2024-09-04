@@ -1,10 +1,9 @@
 use std::fmt::Display;
 
-use miette::Error;
-
 use crate::{
-    compiler::context::{Buildable, Context},
+    compiler::compiler_context::{Buildable, CompilerContext},
     spanned::Spanned,
+    ALResult,
 };
 
 use super::{expression::Expr, type_def::TypeID};
@@ -44,8 +43,7 @@ impl Display for FunctionDecl {
 }
 
 impl Buildable for FunctionDecl {
-    type Error = Error;
-    fn build(&self, builder: &mut Context) -> Result<(), Self::Error> {
+    fn build(&self, builder: &mut CompilerContext) -> ALResult<()> {
         // Push next pc to the stack for returning back to the function
         // Set Base pointer to the current stack pointer
 

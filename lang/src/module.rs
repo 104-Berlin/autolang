@@ -1,9 +1,10 @@
-use miette::Error;
+use miette::SourceSpan;
 
 use crate::{
-    compiler::context::{Buildable, Context},
+    compiler::compiler_context::{Buildable, CompilerContext},
     parser::{function::FunctionDecl, structs::Struct},
-    spanned::Spanned,
+    spanned::{SpanExt, Spanned, WithSpan},
+    ALResult,
 };
 
 pub struct Module {
@@ -43,13 +44,21 @@ impl Module {
 }
 
 impl Buildable for Module {
-    type Error = Error;
+    fn build(&self, builder: &mut CompilerContext) -> ALResult<()> {
+        let mut span: Option<SourceSpan> = None;
 
-    fn build(&self, builder: &mut Context) -> Result<(), Self::Error> {
         for func in self.functions() {
             func.build(builder)?;
+            match span {
+                Some(s) => {
+                    span = Some(s.union(&func.span));
+                }
+                None => {
+                    span = Some(func.span);
+                }
+            }
         }
 
-        Ok(())
+        Ok(().with_span(span.expect("Empty module")))
     }
 }

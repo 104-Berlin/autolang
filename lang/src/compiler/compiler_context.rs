@@ -1,13 +1,20 @@
 use std::collections::HashMap;
 
-use miette::{miette, LabeledSpan};
+use miette::{miette, IntoDiagnostic, LabeledSpan, SourceSpan};
 use virtual_machine::{
-    instruction::{args::jump_cond::JumpCondition, Instruction},
+    instruction::{
+        args::{jump_cond::JumpCondition, InstructionArg},
+        Instruction,
+    },
     memory::Memory,
     register::Register,
 };
 
-use crate::{prelude::Spanned, ALResult};
+use crate::{
+    prelude::Spanned,
+    spanned::{SpanExt, WithSpan},
+    ALResult,
+};
 
 use super::{
     scope::Scope,
@@ -17,9 +24,7 @@ use super::{
 pub type Block = usize;
 
 pub trait Buildable {
-    type Error;
-
-    fn build(&self, builder: &mut Context) -> Result<(), Self::Error>;
+    fn build(&self, builder: &mut CompilerContext) -> ALResult<()>;
 }
 
 pub enum VarLocation {
@@ -33,12 +38,12 @@ pub struct SymbolTable {
     scopes: Option<Scope>,         // Can we make this non optional?
 }
 
-pub struct Context {
+pub struct CompilerContext {
     /// For now 4kb programs? aka 1024 instructions and static values.
     /// Maybe we need some kind of resizable memory?
     memory: [u32; 1024],
     addr: u32,
-    unresolved: Vec<(UnresolvedInstruction, u32)>,
+    unresolved: Vec<(Spanned<UnresolvedInstruction>, u32)>,
 
     labels: HashMap<String, u32>,
 
@@ -50,7 +55,7 @@ pub struct Context {
     current_break_block: Option<Block>,
 }
 
-impl Default for Context {
+impl Default for CompilerContext {
     fn default() -> Self {
         Self {
             memory: [0; 1024],
@@ -65,53 +70,65 @@ impl Default for Context {
     }
 }
 
-impl Context {
-    pub fn build_instruction(&mut self, instruction: Instruction) -> ALResult<()> {
-        let instr = Instruction::match_to_bytes(instruction);
+impl CompilerContext {
+    pub fn build_instruction(&mut self, instruction: Spanned<Instruction>) -> ALResult<()> {
+        let instr = Instruction::match_to_bytes(instruction.value);
         // (self.memory as <Memory>).write(self.addr, instr);
         // How do i write via the memory trait?
-        Memory::write(&mut self.memory, self.addr, instr)?;
+        Memory::write(&mut self.memory, self.addr, instr).into_diagnostic()?;
 
         self.addr += 1;
-        Ok(())
+        Ok(().with_span(instruction.span))
     }
 
     pub fn build_instruction_unresolved(
         &mut self,
-        instruction: UnresolvedInstruction,
+        instruction: Spanned<UnresolvedInstruction>,
     ) -> ALResult<()> {
         // We try resolving them right now.
         match instruction.resolved(self.addr, &self.labels) {
-            Ok(instruction) => self.build_instruction(instruction),
+            Ok(resolved) => self.build_instruction(resolved.with_span(instruction.span)),
             Err(_) => {
+                let span = instruction.span;
                 self.unresolved.push((instruction, self.addr));
                 self.addr += 1;
-                Ok(())
+                Ok(().with_span(span))
             }
         }
     }
 
-    pub fn build_unconditional_jump(&mut self, block: Block) -> ALResult<()> {
+    pub fn build_unconditional_jump(&mut self, block: Block, span: SourceSpan) -> ALResult<()> {
         let label = self.get_block_label(block)?;
 
-        self.build_instruction_unresolved(UnresolvedInstruction::Jump {
-            cond: JumpCondition::Always,
-            offset: Unresolved::Unresolved(label),
-        })
+        self.build_instruction_unresolved(
+            UnresolvedInstruction::Jump {
+                cond: JumpCondition::Always,
+                offset: Unresolved::Unresolved(label),
+            }
+            .with_span(span),
+        )
     }
 
-    pub fn build_conditional_jump(&mut self, block: Block, cond: JumpCondition) -> ALResult<()> {
+    pub fn build_conditional_jump(
+        &mut self,
+        block: Block,
+        cond: JumpCondition,
+        span: SourceSpan,
+    ) -> ALResult<()> {
         let label = self.get_block_label(block)?;
 
-        self.build_instruction_unresolved(UnresolvedInstruction::Jump {
-            cond,
-            offset: Unresolved::Unresolved(label),
-        })
+        self.build_instruction_unresolved(
+            UnresolvedInstruction::Jump {
+                cond,
+                offset: Unresolved::Unresolved(label),
+            }
+            .with_span(span),
+        )
     }
 
     // Expects the value for the var to be in RA1
-    pub fn build_local_var(&mut self, sym: Spanned<String>) -> ALResult<()> {
-        self.build_instruction(Instruction::Push(Register::RA1.into()))?;
+    pub fn build_local_var(&mut self, sym: &Spanned<String>) -> ALResult<()> {
+        self.build_instruction(Instruction::Push(Register::RA1.into()).with_span(sym.span))?;
         // Push the var to the symbol table
         self.symbol_table
             .scopes
@@ -120,24 +137,17 @@ impl Context {
                 labels = vec![LabeledSpan::at(sym.span, ""),],
                 "You are in the top level scope. You can't define a local variable here."
             ))?
-            .push_variable(sym);
+            .push_variable((**sym).clone());
 
-        Ok(())
+        Ok(().with_span(sym.span))
     }
 
-    // This should be renamed to add global and use the symbol table
-    pub fn add_value(&mut self, addr: u32, value: u32) -> ALResult<()> {
-        self.memory.write(addr, value)?;
-
-        Ok(())
-    }
-
-    pub fn find_var(&self, sym: &str) -> Option<VarLocation> {
+    pub fn find_var(&self, sym: &Spanned<String>) -> Option<VarLocation> {
         if let Some(offset) = self.symbol_table.scopes.as_ref()?.get(sym) {
             return Some(VarLocation::Local(offset));
         }
 
-        if let Some(addr) = self.symbol_table.globals.get(sym) {
+        if let Some(addr) = self.symbol_table.globals.get(&**sym) {
             return Some(VarLocation::Global(*addr));
         }
 
@@ -151,7 +161,7 @@ impl Context {
         block_id
     }
 
-    pub fn block_insertion_point(&mut self, block: Block) -> ALResult<()> {
+    pub fn block_insertion_point(&mut self, block: Block, span: SourceSpan) -> ALResult<()> {
         let block_label = self.get_block_label(block)?;
         if self.labels.contains_key(&block_label) {
             return Err(miette!("Block already defined"));
@@ -159,7 +169,7 @@ impl Context {
 
         self.labels.insert(block_label, self.addr);
 
-        Ok(())
+        Ok(().with_span(span))
     }
 
     pub fn push_scope(&mut self) {
@@ -202,25 +212,32 @@ impl Context {
     }
 
     pub fn finish(mut self) -> ALResult<[u32; 1024]> {
-        self.resolve_instructions()?;
-        Ok(self.memory)
+        let total_span = self.resolve_instructions()?.span;
+        Ok(self.memory.with_span(total_span))
     }
 
     fn resolve_instructions(&mut self) -> ALResult<()> {
+        let mut span: Option<SourceSpan> = None;
         for instr in self.unresolved.iter() {
             let instruction = instr.0.resolved(instr.1, &self.labels)?;
 
             self.memory
-                .write(instr.1, Instruction::match_to_bytes(instruction))?;
+                .write(instr.1, Instruction::match_to_bytes(instruction))
+                .into_diagnostic()?;
+
+            match span {
+                Some(ref mut s) => *s = s.union(&instr.0.span),
+                None => span = Some(instr.0.span),
+            }
         }
 
-        Ok(())
+        Ok(().with_span(span.unwrap_or(SourceSpan::from(0..0))))
     }
 
-    fn get_block_label(&self, block: Block) -> ALResult<String> {
+    fn get_block_label(&self, block: Block) -> Result<String, miette::Error> {
         self.blocks
             .get(block - 1)
             .cloned()
-            .ok_or(miette!("Block ({block}) not found"))
+            .ok_or(miette!("Block ({}) not found", block))
     }
 }
