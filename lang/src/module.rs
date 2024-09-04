@@ -1,7 +1,7 @@
 use miette::Error;
-use virtual_machine::program_builder::{Buildable, ProgramBuilder};
 
 use crate::{
+    compiler::context::{Buildable, Context},
     parser::{function::FunctionDecl, structs::Struct},
     spanned::Spanned,
 };
@@ -45,7 +45,7 @@ impl Module {
 impl Buildable for Module {
     type Error = Error;
 
-    fn build(&self, builder: &mut ProgramBuilder) -> Result<(), Self::Error> {
+    fn build(&self, builder: &mut Context) -> Result<(), Self::Error> {
         for func in self.functions() {
             func.build(builder)?;
         }

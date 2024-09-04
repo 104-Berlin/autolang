@@ -64,3 +64,15 @@ impl<T> Deref for Spanned<T> {
         &self.value
     }
 }
+
+pub trait WithSpan {
+    fn with_span(self, span: SourceSpan) -> Spanned<Self>
+    where
+        Self: Sized;
+}
+
+impl<T> WithSpan for T {
+    fn with_span(self, span: SourceSpan) -> Spanned<Self> {
+        Spanned { span, value: self }
+    }
+}

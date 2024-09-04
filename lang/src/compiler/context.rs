@@ -1,26 +1,25 @@
 use std::collections::HashMap;
 
-use scope::Scope;
-
-use crate::{
-    error::{VMError, VMResult},
-    instruction::{
-        args::{jump_cond::JumpCondition, InstructionArg},
-        unresolved_instruction::{Unresolved, UnresolvedInstruction},
-        Instruction,
-    },
+use miette::{miette, LabeledSpan};
+use virtual_machine::{
+    instruction::{args::jump_cond::JumpCondition, Instruction},
     memory::Memory,
     register::Register,
 };
 
-pub mod scope;
+use crate::{prelude::Spanned, ALResult};
+
+use super::{
+    scope::Scope,
+    unresolved_instruction::{Unresolved, UnresolvedInstruction},
+};
 
 pub type Block = usize;
 
 pub trait Buildable {
     type Error;
 
-    fn build(&self, builder: &mut ProgramBuilder) -> Result<(), Self::Error>;
+    fn build(&self, builder: &mut Context) -> Result<(), Self::Error>;
 }
 
 pub enum VarLocation {
@@ -34,7 +33,7 @@ pub struct SymbolTable {
     scopes: Option<Scope>,         // Can we make this non optional?
 }
 
-pub struct ProgramBuilder {
+pub struct Context {
     /// For now 4kb programs? aka 1024 instructions and static values.
     /// Maybe we need some kind of resizable memory?
     memory: [u32; 1024],
@@ -51,7 +50,7 @@ pub struct ProgramBuilder {
     current_break_block: Option<Block>,
 }
 
-impl Default for ProgramBuilder {
+impl Default for Context {
     fn default() -> Self {
         Self {
             memory: [0; 1024],
@@ -66,8 +65,8 @@ impl Default for ProgramBuilder {
     }
 }
 
-impl ProgramBuilder {
-    pub fn build_instruction(&mut self, instruction: Instruction) -> VMResult<()> {
+impl Context {
+    pub fn build_instruction(&mut self, instruction: Instruction) -> ALResult<()> {
         let instr = Instruction::match_to_bytes(instruction);
         // (self.memory as <Memory>).write(self.addr, instr);
         // How do i write via the memory trait?
@@ -80,7 +79,7 @@ impl ProgramBuilder {
     pub fn build_instruction_unresolved(
         &mut self,
         instruction: UnresolvedInstruction,
-    ) -> VMResult<()> {
+    ) -> ALResult<()> {
         // We try resolving them right now.
         match instruction.resolved(self.addr, &self.labels) {
             Ok(instruction) => self.build_instruction(instruction),
@@ -92,7 +91,7 @@ impl ProgramBuilder {
         }
     }
 
-    pub fn build_unconditional_jump(&mut self, block: Block) -> VMResult<()> {
+    pub fn build_unconditional_jump(&mut self, block: Block) -> ALResult<()> {
         let label = self.get_block_label(block)?;
 
         self.build_instruction_unresolved(UnresolvedInstruction::Jump {
@@ -101,7 +100,7 @@ impl ProgramBuilder {
         })
     }
 
-    pub fn build_conditional_jump(&mut self, block: Block, cond: JumpCondition) -> VMResult<()> {
+    pub fn build_conditional_jump(&mut self, block: Block, cond: JumpCondition) -> ALResult<()> {
         let label = self.get_block_label(block)?;
 
         self.build_instruction_unresolved(UnresolvedInstruction::Jump {
@@ -111,20 +110,23 @@ impl ProgramBuilder {
     }
 
     // Expects the value for the var to be in RA1
-    pub fn build_local_var(&mut self, sym: String) -> VMResult<()> {
+    pub fn build_local_var(&mut self, sym: Spanned<String>) -> ALResult<()> {
         self.build_instruction(Instruction::Push(Register::RA1.into()))?;
         // Push the var to the symbol table
         self.symbol_table
             .scopes
             .as_mut()
-            .ok_or(VMError::NoScopeForVariable(sym.clone()))?
+            .ok_or(miette!(
+                labels = vec![LabeledSpan::at(sym.span, ""),],
+                "You are in the top level scope. You can't define a local variable here."
+            ))?
             .push_variable(sym);
 
         Ok(())
     }
 
     // This should be renamed to add global and use the symbol table
-    pub fn add_value(&mut self, addr: u32, value: u32) -> VMResult<()> {
+    pub fn add_value(&mut self, addr: u32, value: u32) -> ALResult<()> {
         self.memory.write(addr, value)?;
 
         Ok(())
@@ -149,10 +151,10 @@ impl ProgramBuilder {
         block_id
     }
 
-    pub fn block_insertion_point(&mut self, block: Block) -> VMResult<()> {
+    pub fn block_insertion_point(&mut self, block: Block) -> ALResult<()> {
         let block_label = self.get_block_label(block)?;
         if self.labels.contains_key(&block_label) {
-            return Err(VMError::BlockAlreadyDefined(block));
+            return Err(miette!("Block already defined"));
         }
 
         self.labels.insert(block_label, self.addr);
@@ -199,12 +201,12 @@ impl ProgramBuilder {
         self.current_break_block
     }
 
-    pub fn finish(mut self) -> VMResult<[u32; 1024]> {
+    pub fn finish(mut self) -> ALResult<[u32; 1024]> {
         self.resolve_instructions()?;
         Ok(self.memory)
     }
 
-    fn resolve_instructions(&mut self) -> VMResult<()> {
+    fn resolve_instructions(&mut self) -> ALResult<()> {
         for instr in self.unresolved.iter() {
             let instruction = instr.0.resolved(instr.1, &self.labels)?;
 
@@ -215,10 +217,10 @@ impl ProgramBuilder {
         Ok(())
     }
 
-    fn get_block_label(&self, block: Block) -> VMResult<String> {
+    fn get_block_label(&self, block: Block) -> ALResult<String> {
         self.blocks
             .get(block - 1)
             .cloned()
-            .ok_or(VMError::BlockNotFound(block))
+            .ok_or(miette!("Block ({block}) not found"))
     }
 }

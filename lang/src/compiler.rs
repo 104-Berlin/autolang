@@ -1,15 +1,11 @@
-use virtual_machine::program_builder::{Buildable, ProgramBuilder};
+use context::Context;
 
 use crate::module::Module;
 use miette::miette;
 
-pub struct Context;
-
-impl Context {
-    pub fn new() -> Self {
-        Context
-    }
-}
+pub mod context;
+pub mod scope;
+pub mod unresolved_instruction;
 
 pub struct Compiler {
     context: Context,
@@ -25,8 +21,7 @@ impl Default for Compiler {
 
 impl Compiler {
     pub fn compile(&mut self, module: &Module) -> Result<[u32; 1024], miette::Error> {
-        let mut builder = ProgramBuilder::default();
-        module.build(&mut builder)?;
-        builder.finish().map_err(|e| miette!("{e}"))
+        module.build(&mut self.context)?;
+        self.context.finish().map_err(|e| miette!("{e}"))
     }
 }

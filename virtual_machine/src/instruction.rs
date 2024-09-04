@@ -14,7 +14,6 @@ use opcode::OpCode;
 pub mod args;
 pub mod opcode;
 pub mod reader;
-pub mod unresolved_instruction;
 pub mod writer;
 
 /// ```text

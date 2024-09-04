@@ -10,7 +10,12 @@ use virtual_machine::{
     register::Register,
 };
 
-use crate::{error::VMToMietteError, spanned::Spanned, tokenizer::literal::Literal};
+use crate::{
+    error::VMToMietteError,
+    spanned::{Spanned, WithSpan},
+    tokenizer::literal::Literal,
+    ALResult,
+};
 
 use super::{
     binary_expression::{BinaryExpression, BinaryOperator},
@@ -213,27 +218,63 @@ impl DotExpr {
     }
 }
 
-impl Expr {
-    pub fn guess_return_type(&self, builder: &mut ProgramBuilder) -> TypeID {
-        match self {
-            Expr::Dot { .. } => None,
-            Expr::FunctionCall(_, _) => None,
-            Expr::Binary(_) => None,
-            Expr::Literal(_) => None,
-            Expr::StructLiteral(_, _) => None,
-            Expr::Variable(_) => None,
-            Expr::Assignment(_, _) => None,
-            Expr::Let(_, typ, _) => typ.clone().map(|t| t.value),
-            Expr::IfExpression { .. } => None,
-            Expr::Loop(_) => None,
+impl Spanned<Expr> {
+    /// Span will be the expression that produces the value
+    pub fn guess_return_type(&self, builder: &mut ProgramBuilder) -> ALResult<TypeID> {
+        let own_span = self.span;
+
+        match &self.value {
+            Expr::Dot { .. } => unimplemented!(),
+            Expr::FunctionCall(_, _) => unimplemented!(),
+            Expr::Binary(_) => unimplemented!(),
+            Expr::Literal(_) => unimplemented!(),
+            Expr::StructLiteral(_, _) => unimplemented!(),
+            Expr::Variable(name) => {
+                let var = builder.find_var(&*name).ok_or(miette!(
+                    labels = vec![LabeledSpan::at(name.span, "here")],
+                    "Variable not found"
+                ))?;
+                todo!()
+            }
+            Expr::Assignment(_, _) => unimplemented!(),
+            Expr::Let(_, _, _) => Ok(TypeID::Void.with_span(own_span)),
+            Expr::IfExpression {
+                if_block,
+                else_block,
+            } => {
+                let if_type = if_block.1.guess_return_type(builder)?;
+                if let Some(else_type) = else_block
+                    .as_ref()
+                    .map(|e| e.guess_return_type(builder))
+                    .transpose()?
+                {
+                    // Two different types of the if and else block
+                    if if_type.value != else_type.value {
+                        Err(miette!(
+                            labels = vec![
+                                LabeledSpan::at(if_type.span, "if type"),
+                                LabeledSpan::at(else_type.span, "else type")
+                            ],
+                            "If and else block have different return types"
+                        ))
+                    } else {
+                        Ok(if_type)
+                    }
+                } else {
+                    Ok(if_type)
+                }
+            }
+            Expr::Loop(_) => unimplemented!(),
             Expr::Block(_, return_expr) => return_expr
                 .as_ref()
-                .and_then(|e| e.value.guess_return_type(builder)),
+                .map(|e| e.guess_return_type(builder))
+                .unwrap_or(Ok(TypeID::Void.with_span(own_span))),
             Expr::Return(expr) => expr
                 .as_ref()
-                .and_then(|e| e.value.guess_return_type(builder)),
-            Expr::Break => None,
-            Expr::Continue => None,
+                .map(|e| e.guess_return_type(builder))
+                .unwrap_or(Ok(TypeID::Void.with_span(own_span))),
+            Expr::Break => unimplemented!(),
+            Expr::Continue => unimplemented!(),
         }
     }
 }

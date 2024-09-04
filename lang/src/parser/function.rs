@@ -1,9 +1,11 @@
 use std::fmt::Display;
 
 use miette::Error;
-use virtual_machine::program_builder::{Buildable, ProgramBuilder};
 
-use crate::spanned::Spanned;
+use crate::{
+    compiler::context::{Buildable, Context},
+    spanned::Spanned,
+};
 
 use super::{expression::Expr, type_def::TypeID};
 
@@ -43,7 +45,7 @@ impl Display for FunctionDecl {
 
 impl Buildable for FunctionDecl {
     type Error = Error;
-    fn build(&self, builder: &mut ProgramBuilder) -> Result<(), Self::Error> {
+    fn build(&self, builder: &mut Context) -> Result<(), Self::Error> {
         // Push next pc to the stack for returning back to the function
         // Set Base pointer to the current stack pointer
 

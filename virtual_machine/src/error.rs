@@ -1,7 +1,5 @@
 use thiserror::Error;
 
-use crate::program_builder::Block;
-
 pub type VMResult<T> = std::result::Result<T, VMError>;
 
 #[derive(Error, Debug)]
@@ -23,16 +21,4 @@ pub enum VMError {
 
     #[error("Label not found '{0}'")]
     LabelNotFound(String),
-
-    #[error("Block already defined '{0}'")]
-    BlockAlreadyDefined(Block),
-
-    #[error("Unresolved label '{0}'")]
-    UnresolvedLabel(String),
-
-    #[error("Block ({0}) not found")]
-    BlockNotFound(Block),
-
-    #[error("No scope for variable '{0}' found")]
-    NoScopeForVariable(String),
 }

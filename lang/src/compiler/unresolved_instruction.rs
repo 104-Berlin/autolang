@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 
-use crate::{
-    error::{VMError, VMResult},
-    register::Register,
-};
-
-use super::{
+use miette::miette;
+use virtual_machine::instruction::{
     args::{jump_cond::JumpCondition, mem_offset::MemOffset},
     Instruction,
 };
+
+use crate::ALResult;
 
 pub enum Unresolved<T> {
     Unresolved(String),
@@ -23,7 +21,7 @@ pub enum UnresolvedInstruction {
 }
 
 impl UnresolvedInstruction {
-    pub fn resolved(&self, own_addr: u32, labels: &HashMap<String, u32>) -> VMResult<Instruction> {
+    pub fn resolved(&self, own_addr: u32, labels: &HashMap<String, u32>) -> ALResult<Instruction> {
         Ok(match self {
             UnresolvedInstruction::Jump { cond, offset } => match offset {
                 Unresolved::Resolved(offset) => Instruction::Jump {
@@ -33,7 +31,7 @@ impl UnresolvedInstruction {
                 Unresolved::Unresolved(label) => {
                     let label_addr = labels
                         .get(label)
-                        .ok_or(VMError::LabelNotFound(label.clone()))?;
+                        .ok_or(miette!("Label {label} not found"))?;
 
                     let offset = label_addr.wrapping_sub(own_addr);
                     Instruction::Jump {

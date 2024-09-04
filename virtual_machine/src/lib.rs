@@ -17,7 +17,6 @@ pub mod error;
 pub mod instruction;
 pub mod machine;
 pub mod memory;
-pub mod program_builder;
 pub mod register;
 
 pub fn sign_extend(value: u32, from: u32) -> u32 {
