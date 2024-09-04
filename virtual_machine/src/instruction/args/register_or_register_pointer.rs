@@ -70,7 +70,6 @@ impl InstructionArg for RegisterOrRegisterPointer {
         Self: Sized,
     {
         let is_pointer = (data >> 12) & 0x1 == 1;
-        println!("Matching from ({is_pointer}) {:8x}", data >> 12);
 
         match is_pointer {
             true => {

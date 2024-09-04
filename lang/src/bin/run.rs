@@ -72,10 +72,7 @@ fn compile<'a>(
         .write_all(
             program
                 .iter()
-                .map(|i| {
-                    println!("WRITE INSTR: 0x{:8x}", *i);
-                    format!("{}", Instruction::match_from_bytes(*i).unwrap())
-                })
+                .map(|i| format!("{}", Instruction::match_from_bytes(*i).unwrap()))
                 .collect::<Vec<String>>()
                 .join("\n")
                 .as_bytes(),
