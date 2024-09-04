@@ -1,11 +1,15 @@
 use std::fmt::Display;
 
-use miette::{miette, Error, LabeledSpan};
+use miette::{miette, Context, Error, LabeledSpan};
+use virtual_machine::{
+    instruction::{args::logical_operator::LogicalOperator, Instruction},
+    register::Register,
+};
 
 use crate::{
     compiler::compiler_context::{Buildable, CompilerContext},
     prelude::TypeID,
-    spanned::Spanned,
+    spanned::{Spanned, WithSpan},
     tokenizer::{identifier::Identifier, token::Token},
     ALResult,
 };
@@ -48,9 +52,63 @@ impl BinaryExpression {
     }
 }
 
-impl Buildable for BinaryExpression {
-    fn build(&self, _builder: &mut CompilerContext) -> ALResult<()> {
-        unimplemented!()
+impl Buildable for Spanned<BinaryExpression> {
+    fn build(&self, builder: &mut CompilerContext) -> ALResult<()> {
+        // Load RHS into RA1 and LHS into RA2
+        self.lhs.build(builder)?;
+        builder
+            .build_instruction(
+                Instruction::Move {
+                    dst: Register::RA2.into(),
+                    src: Register::RA1.into(),
+                }
+                .with_span(self.span),
+            )
+            .wrap_err("Building Binary Expression")?;
+        self.rhs.build(builder)?;
+
+        let op = &self.op.value;
+        let op_span = self.op.span;
+
+        match op {
+            BinaryOperator::Add => builder
+                .build_instruction(
+                    Instruction::Add {
+                        dst: Register::RA1,
+                        lhs: Register::RA2.into(),
+                        rhs: Register::RA1.into(),
+                    }
+                    .with_span(self.span),
+                )
+                .wrap_err("Building (Add) Binary Expression")?,
+
+            BinaryOperator::Assign => todo!(),
+            BinaryOperator::Substract => todo!(),
+            BinaryOperator::Multiply => todo!(),
+            BinaryOperator::Divide => todo!(),
+            BinaryOperator::And => todo!(),
+            BinaryOperator::Or => todo!(),
+            BinaryOperator::Equal => {
+                builder.build_compare(LogicalOperator::EQ.with_span(op_span))?
+            }
+            BinaryOperator::NotEqual => {
+                builder.build_compare(LogicalOperator::NE.with_span(op_span))?
+            }
+            BinaryOperator::LessThan => {
+                builder.build_compare(LogicalOperator::LT.with_span(op_span))?
+            }
+            BinaryOperator::LessThanOrEqual => {
+                builder.build_compare(LogicalOperator::LE.with_span(op_span))?
+            }
+            BinaryOperator::GreaterThan => {
+                builder.build_compare(LogicalOperator::GT.with_span(op_span))?
+            }
+            BinaryOperator::GreaterThanOrEqual => {
+                builder.build_compare(LogicalOperator::GE.with_span(op_span))?
+            }
+        };
+
+        Ok(().with_span(self.span))
     }
 }
 

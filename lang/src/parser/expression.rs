@@ -175,11 +175,11 @@ impl Buildable for Spanned<Expr> {
         let expr = &self.value;
         let span = self.span;
         match expr {
-            Expr::Dot { .. } => todo!(),
+            Expr::Dot { .. } => todo!(), // With structs
             Expr::FunctionCall(_, _) => todo!(),
-            Expr::Binary(bin) => Self::compile_binary_expression(builder, bin),
+            Expr::Binary(bin) => bin.build(builder),
             Expr::Literal(val) => Self::compile_literal(builder, val),
-            Expr::StructLiteral(_, _) => todo!(),
+            Expr::StructLiteral(_, _) => todo!(), // With structs
             Expr::Variable(var) => Self::compile_var_expr(builder, var, span),
             Expr::Assignment(_, _) => todo!(),
             Expr::Let(symbol, typ, assign) => Self::compile_let_expr(builder, symbol, typ, assign),
@@ -435,95 +435,6 @@ impl Spanned<Expr> {
         builder.block_insertion_point(if_end_block, end_span)?;
 
         Ok(().with_span(if_span_complete.union(&end_span)))
-    }
-
-    fn compile_binary_expression(
-        builder: &mut CompilerContext,
-        bin: &Spanned<BinaryExpression>,
-    ) -> ALResult<()> {
-        // Load RHS into RA1 and LHS into RA2
-        bin.lhs.build(builder)?;
-        builder
-            .build_instruction(
-                Instruction::Move {
-                    dst: Register::RA2.into(),
-                    src: Register::RA1.into(),
-                }
-                .with_span(bin.span),
-            )
-            .wrap_err("Building Binary Expression")?;
-        bin.rhs.build(builder)?;
-
-        let op = &bin.op.value;
-        let op_span = bin.op.span;
-
-        match op {
-            BinaryOperator::Add => builder
-                .build_instruction(
-                    Instruction::Add {
-                        dst: Register::RA1,
-                        lhs: Register::RA2.into(),
-                        rhs: Register::RA1.into(),
-                    }
-                    .with_span(bin.span),
-                )
-                .wrap_err("Building (Add) Binary Expression")?,
-
-            BinaryOperator::Assign => todo!(),
-            BinaryOperator::Substract => todo!(),
-            BinaryOperator::Multiply => todo!(),
-            BinaryOperator::Divide => todo!(),
-            BinaryOperator::And => todo!(),
-            BinaryOperator::Or => todo!(),
-            BinaryOperator::Equal => {
-                Self::compile_compare(builder, LogicalOperator::EQ.with_span(op_span))?
-            }
-            BinaryOperator::NotEqual => {
-                Self::compile_compare(builder, LogicalOperator::NE.with_span(op_span))?
-            }
-            BinaryOperator::LessThan => {
-                Self::compile_compare(builder, LogicalOperator::LT.with_span(op_span))?
-            }
-            BinaryOperator::LessThanOrEqual => {
-                Self::compile_compare(builder, LogicalOperator::LE.with_span(op_span))?
-            }
-            BinaryOperator::GreaterThan => {
-                Self::compile_compare(builder, LogicalOperator::GT.with_span(op_span))?
-            }
-            BinaryOperator::GreaterThanOrEqual => {
-                Self::compile_compare(builder, LogicalOperator::GE.with_span(op_span))?
-            }
-        };
-
-        Ok(().with_span(bin.span))
-    }
-
-    /// Requires RA2 = lhs and RA1 = rhs
-    fn compile_compare(
-        builder: &mut CompilerContext,
-        operator: Spanned<LogicalOperator>,
-    ) -> ALResult<()> {
-        builder
-            .build_instruction(
-                Instruction::Compare {
-                    lhs: Register::RA2.into(),
-                    rhs: Register::RA1.into(),
-                }
-                .with_span(operator.span),
-            )
-            .wrap_err("Building Compare")?;
-        // Load the result of the comparison into RA1
-        builder
-            .build_instruction(
-                Instruction::LoadBool {
-                    dst: Register::RA1,
-                    op: operator.value,
-                }
-                .with_span(operator.span),
-            )
-            .wrap_err("Building Compare")?;
-
-        Ok(().with_span(operator.span))
     }
 
     fn compile_literal(builder: &mut CompilerContext, literal: &Spanned<Literal>) -> ALResult<()> {

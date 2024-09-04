@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use miette::{miette, IntoDiagnostic, LabeledSpan, SourceSpan};
+use miette::{miette, Context, IntoDiagnostic, LabeledSpan, SourceSpan};
 use virtual_machine::{
     instruction::{
-        args::{jump_cond::JumpCondition, InstructionArg},
+        args::{jump_cond::JumpCondition, logical_operator::LogicalOperator, InstructionArg},
         Instruction,
     },
     memory::Memory,
@@ -140,6 +140,29 @@ impl CompilerContext {
             .push_variable((**sym).clone(), typ);
 
         Ok(().with_span(sym.span))
+    }
+
+    /// Requires RA2 = lhs and RA1 = rhs
+    pub fn build_compare(&mut self, operator: Spanned<LogicalOperator>) -> ALResult<()> {
+        self.build_instruction(
+            Instruction::Compare {
+                lhs: Register::RA2.into(),
+                rhs: Register::RA1.into(),
+            }
+            .with_span(operator.span),
+        )
+        .wrap_err("Building Compare")?;
+        // Load the result of the comparison into RA1
+        self.build_instruction(
+            Instruction::LoadBool {
+                dst: Register::RA1,
+                op: operator.value,
+            }
+            .with_span(operator.span),
+        )
+        .wrap_err("Building Compare")?;
+
+        Ok(().with_span(operator.span))
     }
 
     pub fn find_var(&self, sym: &Spanned<String>) -> Option<(VarLocation, TypeID)> {
