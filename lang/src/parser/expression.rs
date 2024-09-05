@@ -201,7 +201,13 @@ impl Buildable for Spanned<Expr> {
                     "Break outside of loop"
                 )),
             },
-            Expr::Continue => todo!(),
+            Expr::Continue => match builder.get_continue_block() {
+                Some(block) => builder.build_unconditional_jump(block, self.span),
+                None => Err(miette!(
+                    labels = vec![LabeledSpan::at(span, "here")],
+                    "Continue outside of loop"
+                )),
+            },
         }
     }
 }
