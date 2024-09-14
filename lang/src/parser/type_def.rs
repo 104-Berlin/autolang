@@ -13,8 +13,6 @@ pub enum TypeID {
 
     Void,
 
-    Function,
-
     User(String),
 }
 
@@ -39,7 +37,6 @@ impl Display for TypeID {
             TypeID::String => write!(f, "string"),
             TypeID::Bool => write!(f, "bool"),
             TypeID::Void => write!(f, "void"),
-            TypeID::Function => write!(f, "fn"),
             TypeID::User(name) => write!(f, "{}", name),
         }
     }
@@ -54,6 +51,5 @@ pub enum TypeDef {
 
     Void,
 
-    Fn(FunctionDecl),
     Struct(Struct),
 }
