@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use crate::prelude::FunctionDecl;
+
 use super::structs::Struct;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,6 +12,8 @@ pub enum TypeID {
     Bool,
 
     Void,
+
+    Function,
 
     User(String),
 }
@@ -35,6 +39,7 @@ impl Display for TypeID {
             TypeID::String => write!(f, "string"),
             TypeID::Bool => write!(f, "bool"),
             TypeID::Void => write!(f, "void"),
+            TypeID::Function => write!(f, "fn"),
             TypeID::User(name) => write!(f, "{}", name),
         }
     }
@@ -49,5 +54,6 @@ pub enum TypeDef {
 
     Void,
 
+    Fn(FunctionDecl),
     Struct(Struct),
 }

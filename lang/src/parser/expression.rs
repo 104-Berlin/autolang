@@ -4,7 +4,7 @@ use miette::{miette, Context, LabeledSpan, SourceSpan};
 use virtual_machine::{
     instruction::{
         args::{
-            arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
+            arg20::Arg20, jump_cond::JumpCondition,
             register_or_register_pointer::RegisterOrRegisterPointer,
             register_pointer::RegisterPointer,
         },
@@ -20,10 +20,7 @@ use crate::{
     ALResult,
 };
 
-use super::{
-    binary_expression::{BinaryExpression, BinaryOperator},
-    type_def::TypeID,
-};
+use super::{binary_expression::BinaryExpression, type_def::TypeID};
 
 /// (Condition, Block)
 pub type IfCondition = (Box<Spanned<Expr>>, Box<Spanned<Expr>>);
@@ -249,7 +246,7 @@ impl Spanned<Expr> {
                 ))?;
                 Ok(var.1.with_span(name.span))
             }
-            Expr::Assignment(_, _) => unimplemented!(),
+            Expr::Assignment(_, _) => Ok(TypeID::Void.with_span(own_span)),
             Expr::Let(_, _, _) => Ok(TypeID::Void.with_span(own_span)),
             Expr::IfExpression {
                 if_block,
@@ -277,7 +274,7 @@ impl Spanned<Expr> {
                     Ok(if_type)
                 }
             }
-            Expr::Loop(_) => unimplemented!(),
+            Expr::Loop(body) => body.guess_return_type(builder),
             Expr::Block(_, return_expr) => return_expr
                 .as_ref()
                 .map(|e| e.guess_return_type(builder))
@@ -286,8 +283,8 @@ impl Spanned<Expr> {
                 .as_ref()
                 .map(|e| e.guess_return_type(builder))
                 .unwrap_or(Ok(TypeID::Void.with_span(own_span))),
-            Expr::Break => unimplemented!(),
-            Expr::Continue => unimplemented!(),
+            Expr::Break => Ok(TypeID::Void.with_span(own_span)),
+            Expr::Continue => Ok(TypeID::Void.with_span(own_span)),
         }
     }
 }
@@ -386,7 +383,7 @@ impl Spanned<Expr> {
                 )?;
                 Ok(().with_span(span))
             }
-            Some((VarLocation::Global(_addr), typ)) => {
+            Some((VarLocation::Global(_addr), _typ)) => {
                 todo!("Global variables are not supported yet")
             }
             None => Err(miette!(
