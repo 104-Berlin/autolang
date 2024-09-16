@@ -109,6 +109,7 @@ impl Value {
                     self.value = Box::new(other.value.as_string().unwrap().to_string())
                 }
                 TypeID::Bool => self.value = Box::new(other.value.as_bool().unwrap()),
+                TypeID::Function(ref _args, ref _return_typ) => todo!("Assign function values"),
                 TypeID::Void => {}
                 TypeID::User(_) => todo!("Assign user defined values"),
             }
@@ -206,9 +207,9 @@ impl Value {
                 self.as_float().unwrap() - other.value.as_float().unwrap(),
             )),
             TypeID::String => todo!(),
-            TypeID::Bool => Err(miette!(
+            TypeID::Bool | TypeID::Function(_, _) => Err(miette!(
                 labels = vec![LabeledSpan::at(other.span, "here")],
-                "Invalid operator for boolean values"
+                "Invalid operator for value"
             )),
             TypeID::Void => todo!(),
             TypeID::User(_) => todo!(),
@@ -235,9 +236,9 @@ impl Value {
                 self.as_float().unwrap() * other.value.as_float().unwrap(),
             )),
             TypeID::String => todo!(),
-            TypeID::Bool => Err(miette!(
+            TypeID::Bool | TypeID::Function(_, _) => Err(miette!(
                 labels = vec![LabeledSpan::at(other.span, "here")],
-                "Invalid operator for boolean values"
+                "Invalid operator for value"
             )),
             TypeID::Void => todo!(),
             TypeID::User(_) => todo!(),
@@ -264,9 +265,9 @@ impl Value {
                 self.as_float().unwrap() / other.value.as_float().unwrap(),
             )),
             TypeID::String => todo!(),
-            TypeID::Bool => Err(miette!(
+            TypeID::Bool | TypeID::Function(_, _) => Err(miette!(
                 labels = vec![LabeledSpan::at(other.span, "here")],
-                "Invalid operator for boolean values"
+                "Invalid operator for value"
             )),
             TypeID::Void => todo!(),
             TypeID::User(_) => todo!(),
@@ -338,6 +339,10 @@ impl Value {
                 self.as_bool().unwrap() == other.value.as_bool().unwrap(),
             )),
             TypeID::Void => Ok(Self::new_bool(true)),
+            TypeID::Function(_, _) => Err(miette!(
+                labels = vec![LabeledSpan::at(other.span, "here")],
+                "Cant compare functions"
+            )),
             TypeID::User(_) => todo!(),
         }
         .map(|v| Spanned::new(v, other.span))
@@ -371,7 +376,7 @@ impl Value {
             TypeID::String => Ok(Self::new_bool(
                 self.as_string().unwrap() < other.value.as_string().unwrap(),
             )),
-            TypeID::Bool => Err(miette!(
+            TypeID::Bool | TypeID::Function(_, _) => Err(miette!(
                 labels = vec![LabeledSpan::at(other.span, "here")],
                 "Invalid operator for boolean values"
             )),
@@ -402,7 +407,7 @@ impl Value {
             TypeID::String => Ok(Self::new_bool(
                 self.as_string().unwrap() > other.value.as_string().unwrap(),
             )),
-            TypeID::Bool => Err(miette!(
+            TypeID::Bool | TypeID::Function(_, _) => Err(miette!(
                 labels = vec![LabeledSpan::at(other.span, "here")],
                 "Invalid operator for boolean values"
             )),
@@ -451,6 +456,7 @@ impl Clone for Value {
             TypeID::Bool => Self::new_bool(self.as_bool().unwrap()),
             TypeID::Void => Self::new_void(),
             TypeID::User(name) => Self::new_struct(name.clone(), self.as_struct().unwrap().clone()),
+            TypeID::Function(_, _) => todo!("Cloning functions"),
         }
     }
 }
@@ -470,6 +476,7 @@ impl From<TypeID> for Value {
             TypeID::Bool => Self::new_bool(false),
             TypeID::Void => Self::new_void(),
             TypeID::User(_) => todo!(),
+            TypeID::Function(_, _) => todo!(),
         }
     }
 }
@@ -525,6 +532,7 @@ impl Display for Value {
             TypeID::Bool => write!(f, "{}", self.as_bool().unwrap()),
             TypeID::Void => write!(f, "void"),
             TypeID::User(_) => todo!(),
+            TypeID::Function(_, _) => todo!(),
         }
     }
 }

@@ -1,4 +1,4 @@
-Push PC
+Push BP
 Move Register(SP) => Register(BP)
 Imm RA1, 2
 Push RA1
@@ -7,7 +7,7 @@ Move Register(RA1) => Register(RA2)
 Imm RA1, 4
 Add RA1, RA2, RA1
 Push RA1
-Halt
+Pop BP
 Halt
 Halt
 Halt

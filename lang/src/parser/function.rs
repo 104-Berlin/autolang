@@ -46,10 +46,7 @@ impl Display for FunctionDecl {
 
 impl Buildable for Spanned<FunctionDecl> {
     fn build(&self, builder: &mut CompilerContext) -> ALResult<()> {
-        // Push next pc to the stack for returning back to the function
-        // Set Base pointer to the current stack pointer
-
-        builder.build_instruction(Instruction::Push(Register::PC.into()).with_span(self.span))?;
+        builder.build_instruction(Instruction::Push(Register::BP.into()).with_span(self.span))?;
 
         builder.build_instruction(
             Instruction::Move {
@@ -60,6 +57,8 @@ impl Buildable for Spanned<FunctionDecl> {
             .with_span(self.span),
         )?;
 
-        self.body.build(builder)
+        self.body.build(builder)?;
+
+        builder.build_instruction(Instruction::Pop(Register::BP.into()).with_span(self.span))
     }
 }

@@ -478,7 +478,9 @@ impl ExecutionContext<'_> {
             TypeID::String => Ok(TypeDef::PrimitiveString.into()),
             TypeID::Bool => Ok(TypeDef::PrimitiveBool.into()),
             TypeID::Void => Ok(TypeDef::Void.into()),
-
+            TypeID::Function(args, ret) => {
+                todo!()
+            }
             TypeID::User(name) => {
                 let type_def = self.public_types.get(name).cloned();
 

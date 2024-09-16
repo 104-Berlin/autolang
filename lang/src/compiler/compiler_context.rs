@@ -35,7 +35,7 @@ pub enum VarLocation {
 #[derive(Default)]
 pub struct SymbolTable {
     globals: HashMap<String, (u32, TypeID)>, // Stored in the memory of the programm. Probably need sections then
-    scopes: Option<Scope>,                   // Can we make this non optional?
+    scopes: Option<Scope>, // Can we make this non optional?, yes by removing the globals.
 }
 
 pub struct CompilerContext {

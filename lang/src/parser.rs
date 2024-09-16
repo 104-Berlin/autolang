@@ -10,7 +10,7 @@ use crate::{
     error::UnexpectedToken,
     input_stream::InputStream,
     module::Module,
-    spanned::{SpanExt, Spanned},
+    spanned::{SpanExt, Spanned, WithSpan},
     tokenizer::{identifier::Identifier, token::Token, Tokenizer},
     ALResult,
 };
@@ -535,21 +535,59 @@ impl Parser<'_> {
     }
 
     fn parse_type(&mut self) -> ALResult<TypeID> {
-        match self.peek()? {
-            Spanned::<Token> {
-                value: Token::Identifier(Identifier::UserDefined(type_name)),
-                span,
-            } => {
+        let token = self.peek()?;
+        match token.value {
+            Token::Identifier(Identifier::UserDefined(type_name)) => {
                 self.consume();
-                Ok(Spanned::new(TypeID::from_string(&type_name), span))
+                Ok(Spanned::new(TypeID::from_string(&type_name), token.span))
             }
-            token => Err(UnexpectedToken {
+            Token::Identifier(Identifier::LParen) => self.parse_function_type(),
+            _ => Err(UnexpectedToken {
                 found: token.value,
                 span: token.span,
                 expected: "Expected a type".into(),
             }
             .into()),
         }
+    }
+
+    /// ```(type, type, ...) -> type```
+    ///
+    /// ```(type, type, ...)``` - Return Void
+    fn parse_function_type(&mut self) -> ALResult<TypeID> {
+        let token = self.consume_checked(Token::Identifier(Identifier::LParen))?;
+
+        let mut span = token.span;
+
+        let mut args = Vec::new();
+
+        while !self.is_next_token(Token::Identifier(Identifier::RParen)) {
+            let typ = self.parse_type()?;
+            span = span.union(&typ.span);
+            args.push(typ.value);
+
+            if self
+                .consume_checked(Token::Identifier(Identifier::Comma))
+                .is_err()
+            {
+                span = span.union(
+                    &self
+                        .consume_checked(Token::Identifier(Identifier::RParen))?
+                        .span,
+                );
+            }
+        }
+        // If we have an arrow, we have a return type
+        let return_type = match self.consume_checked(Token::Identifier(Identifier::Arrow)) {
+            Ok(_) => {
+                let typ = self.parse_type()?;
+                span = span.union(&typ.span);
+                typ.value
+            }
+            Err(_) => TypeID::Void,
+        };
+
+        Ok(TypeID::Function(args, Box::new(return_type)).with_span(span))
     }
 }
 // Parser helpers
@@ -579,22 +617,6 @@ impl Parser<'_> {
 
     fn is_next_token(&mut self, expected: Token) -> bool {
         self.peek().map_or(false, |t| t.value == expected)
-    }
-
-    #[allow(dead_code)]
-    fn expect_token(&mut self, expected: Token) -> ALResult<Token> {
-        let token = self.peek()?;
-
-        if token.value == expected {
-            Ok(token)
-        } else {
-            Err(UnexpectedToken {
-                found: token.value,
-                span: token.span,
-                expected: expected.into(),
-            }
-            .into())
-        }
     }
 
     fn consume_checked(&mut self, expected: Token) -> ALResult<Token> {
