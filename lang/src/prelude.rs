@@ -1,10 +1,9 @@
-pub use crate::execution::*;
 pub use crate::input_stream::FileInputStream;
 pub use crate::parser::{
     binary_expression::{BinaryExpression, BinaryOperator},
     expression::Expr,
     function::{ArgumentDecl, FunctionDecl, FunctionProto},
-    structs::{Struct, StructValue},
+    structs::Struct,
     type_def::{TypeDef, TypeID},
     Parser,
 };

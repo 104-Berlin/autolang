@@ -77,6 +77,7 @@ impl Parser<'_> {
 
         while let Ok(Spanned::<Token> { value, span }) = self.peek() {
             module_span = module_span.union(&span);
+
             match value {
                 Token::Identifier(Identifier::Function) => {
                     self.consume();
@@ -349,16 +350,37 @@ impl Parser<'_> {
     }
 
     fn parse_block_expression(&mut self) -> ALResult<Expr> {
-        let mut block = Vec::new();
-
         let span = self
             .consume_checked(Token::Identifier(Identifier::LBrace))?
             .span;
 
+        let ret = self.parse_block_expression_inner()?;
+
+        let span = span.union(
+            &self
+                .consume_checked(Token::Identifier(Identifier::RBrace))?
+                .span,
+        );
+
+        Ok(ret.map_span(|_| span))
+    }
+
+    /// Parses a block, but does not check for the curly braces.
+    ///
+    /// Used for top level parsing of a module
+    fn parse_block_expression_inner(&mut self) -> ALResult<Expr> {
+        let mut span: Option<SourceSpan> = None;
+
+        let mut block = Vec::new();
         let mut return_expression = None;
 
         while !self.is_next_token(Token::Identifier(Identifier::RBrace)) {
             let expr = self.parse_expression()?;
+
+            match span {
+                Some(s) => span = Some(s.union(&expr.span)),
+                None => span = Some(expr.span),
+            }
 
             // We expect a semicolon after each expression in a block, or we are at the end of the block.
             match self.consume_checked(Token::Identifier(Identifier::Semicolon)) {
@@ -380,13 +402,10 @@ impl Parser<'_> {
             }
         }
 
-        let span = span.union(
-            &self
-                .consume_checked(Token::Identifier(Identifier::RBrace))?
-                .span,
-        );
-
-        Ok(Spanned::new(Expr::Block(block, return_expression), span))
+        Ok(Spanned::new(
+            Expr::Block(block, return_expression),
+            span.unwrap_or(SourceSpan::new(0.into(), 0)),
+        ))
     }
 
     fn parse_return_expression(&mut self) -> ALResult<Expr> {

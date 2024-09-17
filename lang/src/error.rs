@@ -5,7 +5,6 @@ use thiserror::Error;
 use virtual_machine::error::VMError;
 
 use crate::{
-    execution::value::Value,
     parser::{binary_expression::BinaryOperator, type_def::TypeID},
     tokenizer::token::Token,
 };
@@ -105,5 +104,5 @@ pub enum ControllFlow {
     #[error("Break statement outside of loop")]
     Break,
     #[error("Return statement outside of function")]
-    Return(Value),
+    Return,
 }

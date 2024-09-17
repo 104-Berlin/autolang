@@ -1,5 +1,9 @@
+fn test() {
+    fn a() {
+        let b = 0;
+    }
+}
 
 fn main() {
-    let a = 2;
-    let b = a + 4;
+    test();
 }
