@@ -567,8 +567,10 @@ impl Spanned<Expr> {
 
         if let TypeID::Function(_, _) = typ {
             // We need to jump to the function
+
             builder.build_instruction(
                 Instruction::Jump {
+                    cond: JumpCondition::Always,
                     dst: RegisterOrRegisterPointer::RegisterPointer(func_location.into()),
                 }
                 .with_span(callee.span),

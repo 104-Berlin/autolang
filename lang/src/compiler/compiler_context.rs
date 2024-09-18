@@ -279,6 +279,10 @@ impl CompilerContext {
         self.current_break_block
     }
 
+    pub fn current_address(&self) -> u32 {
+        self.addr
+    }
+
     pub fn finish(mut self) -> ALResult<([u32; 1024], u32)> {
         let total_span = self.resolve_instructions()?.span;
 
