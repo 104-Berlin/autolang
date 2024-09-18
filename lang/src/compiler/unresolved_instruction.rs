@@ -36,6 +36,7 @@ impl UnresolvedInstruction {
                         .ok_or(miette!("Label {label} not found"))?;
 
                     let offset = label_addr.wrapping_sub(own_addr);
+                    println!("Resolve jump {}", offset as i32);
                     Instruction::Jump {
                         cond: *cond,
                         dst: MemOffset::from(offset).into(),

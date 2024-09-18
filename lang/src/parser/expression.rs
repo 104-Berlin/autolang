@@ -14,7 +14,10 @@ use virtual_machine::{
 };
 
 use crate::{
-    compiler::compiler_context::{Buildable, CompilerContext, VarLocation},
+    compiler::{
+        compiler_context::{Buildable, CompilerContext, VarLocation},
+        unresolved_instruction::{Unresolved, UnresolvedInstruction},
+    },
     prelude::{ArgumentDecl, FunctionDecl},
     spanned::{SpanExt, Spanned, WithSpan},
     tokenizer::literal::Literal,
@@ -560,27 +563,13 @@ impl Spanned<Expr> {
             .build_instruction(Instruction::Push(Register::PC.into()).with_span(callee.span.next()))
             .wrap_err("Building Function Call")?;
 
-        let (func_location, typ) = builder.find_var(callee).ok_or(miette!(
-            labels = vec![LabeledSpan::at(callee.span, "here")],
-            "Function not found"
-        ))?;
-
-        if let TypeID::Function(_, _) = typ {
-            // We need to jump to the function
-
-            builder.build_instruction(
-                Instruction::Jump {
-                    cond: JumpCondition::Always,
-                    dst: RegisterOrRegisterPointer::RegisterPointer(func_location.into()),
-                }
-                .with_span(callee.span),
-            )?;
-        } else {
-            return Err(miette!(
-                labels = vec![LabeledSpan::at(callee.span, "here")],
-                "Not a function"
-            ));
-        }
+        builder.build_instruction_unresolved(
+            UnresolvedInstruction::Jump {
+                cond: JumpCondition::Always,
+                offset: Unresolved::Unresolved(callee.value.clone()),
+            }
+            .with_span(callee.span),
+        )?;
 
         Ok(().with_span(callee.span))
     }

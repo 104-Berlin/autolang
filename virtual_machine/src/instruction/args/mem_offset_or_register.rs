@@ -37,9 +37,12 @@ impl From<Register> for MemOffsetOrRegister {
     }
 }
 
-impl From<MemOffset> for MemOffsetOrRegister {
-    fn from(mem_offset: MemOffset) -> Self {
-        Self::MemOffset(mem_offset)
+impl<M> From<M> for MemOffsetOrRegister
+where
+    M: Into<MemOffset>,
+{
+    fn from(mem_offset: M) -> Self {
+        Self::MemOffset(mem_offset.into())
     }
 }
 
@@ -53,7 +56,7 @@ impl Display for MemOffsetOrRegister {
 }
 
 impl InstructionArg for MemOffsetOrRegister {
-    const BIT_SIZE: u32 = 10;
+    const BIT_SIZE: u32 = 22;
 
     fn match_from_bytes(data: u32) -> VMResult<Self>
     where
