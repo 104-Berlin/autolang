@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use miette::{miette, Context, IntoDiagnostic, LabeledSpan, SourceSpan};
 use virtual_machine::{
     instruction::{
-        args::{jump_cond::JumpCondition, logical_operator::LogicalOperator, InstructionArg},
+        args::{
+            jump_cond::JumpCondition, logical_operator::LogicalOperator,
+            register_pointer::RegisterPointer, InstructionArg,
+        },
         Instruction,
     },
     memory::Memory,
@@ -126,11 +129,35 @@ impl CompilerContext {
         )
     }
 
+    pub fn build_return(&mut self, span: SourceSpan) -> ALResult<()> {
+        // leave
+        self.build_instruction(Instruction::Pop(Register::BP.into()).with_span(span))?;
+        self.build_instruction(
+            Instruction::Move {
+                dst: Register::SP.into(),
+                src: Register::BP.into(),
+            }
+            .with_span(span),
+        )?;
+
+        // ret
+        self.build_instruction(Instruction::Pop(Register::RS1.into()).with_span(span))?;
+        self.build_instruction(
+            Instruction::Jump {
+                cond: JumpCondition::Always,
+                dst: Register::RS1.into(),
+            }
+            .with_span(span),
+        )?;
+
+        Ok(().with_span(span))
+    }
+
     // Expects the value for the var to be in RA1
     pub fn build_local_var(&mut self, sym: &Spanned<String>, typ: TypeID) -> ALResult<()> {
-        self.build_instruction(Instruction::Push(Register::RA1.into()).with_span(sym.span))?;
         // Push the var to the symbol table
-        self.symbol_table
+        let offset = self
+            .symbol_table
             .scopes
             .as_mut()
             .ok_or(miette!(
@@ -138,6 +165,22 @@ impl CompilerContext {
                 "You are in the top level scope. You can't define a local variable here."
             ))?
             .push_variable((**sym).clone(), typ);
+        // Assert if the offset is bigger then 6 bits
+        assert!(offset < 0b111111);
+
+        // We Push without moving the stack pointer
+        // Can be dangerous if we have more then 64 / 4 = 16 local variables.
+        self.build_instruction(
+            Instruction::Move {
+                dst: RegisterPointer::new(
+                    Register::BP,
+                    offset as u8, // Safe because of assert
+                )
+                .into(),
+                src: Register::RA1.into(),
+            }
+            .with_span(sym.span),
+        )?;
 
         Ok(().with_span(sym.span))
     }
@@ -177,9 +220,11 @@ impl CompilerContext {
         None
     }
 
-    pub fn append_block(&mut self, label: Option<&'static str>) -> Block {
+    pub fn append_block(&mut self, label: Option<&str>) -> Block {
         let block_id = self.blocks.len() + 1;
-        let label = format!("{}__block{}", label.unwrap_or(""), block_id);
+        let label = label
+            .unwrap_or(&format!("__block{}__", block_id))
+            .to_string();
         self.blocks.push(label);
         block_id
     }
@@ -234,9 +279,16 @@ impl CompilerContext {
         self.current_break_block
     }
 
-    pub fn finish(mut self) -> ALResult<[u32; 1024]> {
+    pub fn finish(mut self) -> ALResult<([u32; 1024], u32)> {
         let total_span = self.resolve_instructions()?.span;
-        Ok(self.memory.with_span(total_span))
+
+        // Find main
+        let main = self
+            .labels
+            .get("main")
+            .ok_or(miette!("No main function found"))?;
+
+        Ok((self.memory, *main).with_span(total_span))
     }
 
     fn resolve_instructions(&mut self) -> ALResult<()> {

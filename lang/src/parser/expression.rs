@@ -4,7 +4,7 @@ use miette::{miette, Context, LabeledSpan, SourceSpan};
 use virtual_machine::{
     instruction::{
         args::{
-            arg20::Arg20, jump_cond::JumpCondition,
+            arg20::Arg20, jump_cond::JumpCondition, mem_offset::MemOffset,
             register_or_register_pointer::RegisterOrRegisterPointer,
             register_pointer::RegisterPointer,
         },
@@ -15,13 +15,13 @@ use virtual_machine::{
 
 use crate::{
     compiler::compiler_context::{Buildable, CompilerContext, VarLocation},
-    prelude::FunctionDecl,
+    prelude::{ArgumentDecl, FunctionDecl},
     spanned::{SpanExt, Spanned, WithSpan},
     tokenizer::literal::Literal,
     ALResult,
 };
 
-use super::{binary_expression::BinaryExpression, structs::Struct, type_def::TypeID};
+use super::{binary_expression::BinaryExpression, type_def::TypeID};
 
 /// (Condition, Block)
 pub type IfCondition = (Box<Spanned<Expr>>, Box<Spanned<Expr>>);
@@ -65,7 +65,11 @@ pub enum Expr {
 
     Block(Vec<Spanned<Expr>>, Option<Box<Spanned<Expr>>>),
 
-    FunctionDeclaration(Box<Spanned<FunctionDecl>>),
+    Lambda {
+        args: Spanned<Vec<ArgumentDecl>>,
+        return_type: Option<Spanned<TypeID>>, // None means we guess from the body. Otherwise the body must return the correct type
+        body: Box<Spanned<Expr>>,
+    },
 
     Return(Option<Box<Spanned<Expr>>>),
     Break,
@@ -157,7 +161,24 @@ impl Display for Expr {
                 write!(f, "}}")
             }
             Expr::Loop(expr) => write!(f, "loop {}", expr.value),
-            Expr::FunctionDeclaration(func) => write!(f, "fn {}", func.value),
+            Expr::Lambda {
+                args,
+                return_type,
+                body,
+            } => {
+                write!(f, "L(")?;
+                for (i, arg) in args.value.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", arg.0.value, arg.1.value)?;
+                }
+                write!(f, ")")?;
+                if let Some(return_type) = return_type {
+                    write!(f, " -> {}", return_type.value)?;
+                }
+                write!(f, " {}", body.value)
+            }
             Expr::Return(expr) => write!(
                 f,
                 "return{}",
@@ -177,7 +198,7 @@ impl Buildable for Spanned<Expr> {
         let span = self.span;
         match expr {
             Expr::Dot { .. } => todo!(), // With structs
-            Expr::FunctionCall(_, _) => todo!(),
+            Expr::FunctionCall(callee, args) => Self::compile_function_call(builder, callee, args),
             Expr::Binary(bin) => bin.build(builder),
             Expr::Literal(val) => Self::compile_literal(builder, val),
             Expr::StructLiteral(_, _) => todo!(), // With structs
@@ -194,10 +215,10 @@ impl Buildable for Spanned<Expr> {
                 statements,
                 return_expr.as_ref().map(AsRef::as_ref),
             ),
-            Expr::FunctionDeclaration(_func) => {
+            Expr::Lambda { .. } => {
                 todo!()
             }
-            Expr::Return(_) => todo!(),
+            Expr::Return(_) => builder.build_return(self.span),
             Expr::Break => match builder.get_break_block() {
                 Some(block) => builder.build_unconditional_jump(block, self.span),
                 None => Err(miette!(
@@ -286,16 +307,28 @@ impl Spanned<Expr> {
                 .as_ref()
                 .map(|e| e.guess_return_type(builder))
                 .unwrap_or(Ok(TypeID::Void.with_span(own_span))),
-            Expr::FunctionDeclaration(func) => Ok(TypeID::Function(
-                func.proto
-                    .arguments
-                    .value
+            Expr::Lambda {
+                args,
+                return_type,
+                body,
+            } => Ok(TypeID::Function(
+                args.value
                     .iter()
                     .map(|arg| arg.1.value.clone())
                     .collect::<Vec<_>>(),
-                Box::new(func.proto.return_type.value.clone()),
+                Box::new(
+                    return_type
+                        .as_ref()
+                        .map(|t| t.value.clone())
+                        .unwrap_or_else(|| {
+                            body.guess_return_type(builder)
+                                .wrap_err("Guessing return type of lambda")
+                                .unwrap()
+                                .value
+                        }),
+                ),
             )
-            .with_span(func.span)),
+            .with_span(own_span)),
             Expr::Return(expr) => expr
                 .as_ref()
                 .map(|e| e.guess_return_type(builder))
@@ -527,10 +560,25 @@ impl Spanned<Expr> {
             .build_instruction(Instruction::Push(Register::PC.into()).with_span(callee.span.next()))
             .wrap_err("Building Function Call")?;
 
-        // Push last base pointer to stack
-        builder
-            .build_instruction(Instruction::Push(Register::BP.into()).with_span(callee.span.next()))
-            .wrap_err("Building Function Call")?;
+        let (func_location, typ) = builder.find_var(callee).ok_or(miette!(
+            labels = vec![LabeledSpan::at(callee.span, "here")],
+            "Function not found"
+        ))?;
+
+        if let TypeID::Function(_, _) = typ {
+            // We need to jump to the function
+            builder.build_instruction(
+                Instruction::Jump {
+                    dst: RegisterOrRegisterPointer::RegisterPointer(func_location.into()),
+                }
+                .with_span(callee.span),
+            )?;
+        } else {
+            return Err(miette!(
+                labels = vec![LabeledSpan::at(callee.span, "here")],
+                "Not a function"
+            ));
+        }
 
         Ok(().with_span(callee.span))
     }

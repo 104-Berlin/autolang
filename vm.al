@@ -1,7 +1,5 @@
 fn test() {
-    fn a() {
-        let b = 0;
-    }
+    let a = 1;
 }
 
 fn main() {

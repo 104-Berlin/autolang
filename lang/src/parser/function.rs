@@ -1,6 +1,12 @@
 use std::fmt::Display;
 
-use virtual_machine::{instruction::Instruction, register::Register};
+use virtual_machine::{
+    instruction::{
+        args::{jump_cond::JumpCondition, mem_offset::MemOffset},
+        Instruction,
+    },
+    register::Register,
+};
 
 use crate::{
     compiler::compiler_context::{Buildable, CompilerContext},
@@ -46,6 +52,9 @@ impl Display for FunctionDecl {
 
 impl Buildable for Spanned<FunctionDecl> {
     fn build(&self, builder: &mut CompilerContext) -> ALResult<()> {
+        let block = builder.append_block(Some(&self.proto.value.name));
+        builder.block_insertion_point(block, self.span)?;
+
         builder.build_instruction(Instruction::Push(Register::BP.into()).with_span(self.span))?;
 
         builder.build_instruction(
@@ -59,6 +68,7 @@ impl Buildable for Spanned<FunctionDecl> {
 
         self.body.build(builder)?;
 
-        builder.build_instruction(Instruction::Pop(Register::BP.into()).with_span(self.span))
+        builder.build_return(self.span)?;
+        Ok(().with_span(self.span))
     }
 }

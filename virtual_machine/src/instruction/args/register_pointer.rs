@@ -22,6 +22,18 @@ pub struct RegisterPointer {
 }
 
 impl RegisterPointer {
+    /// Create a new register pointer
+    ///
+    /// # Arguments
+    ///
+    /// * `register` - The register to use
+    /// * `offset` - The offset to use. This is a 6 bit value. The offset will be added to the value of the register
+    pub fn new(register: Register, offset: u8) -> Self {
+        Self { register, offset }
+    }
+}
+
+impl RegisterPointer {
     pub fn read(&self, machine: &Machine) -> VMResult<u32> {
         let address = machine.registers().get(self.register) as i32 + self.offset as i32;
         machine.memory().read(address as u32)

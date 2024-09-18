@@ -1,5 +1,6 @@
 use crate::error::VMResult;
 use crate::instruction::args::logical_operator::LogicalOperator;
+use crate::instruction::args::mem_offset_or_register::MemOffsetOrRegister;
 use crate::instruction::args::register_or_register_pointer::RegisterOrRegisterPointer;
 use crate::instruction::{
     args::{
@@ -37,11 +38,14 @@ impl Machine {
     pub const STACK_START: u32 = 0x0300; // Musst be devisable by 4
     pub const PROGRAM_START: u32 = 0x0BBC; // Musst be devisable by 4
 
-    pub fn load_program(mut self, program: &[u32]) -> VMResult<Self> {
+    pub fn load_program(mut self, program: &[u32], entry_point: u32) -> VMResult<Self> {
         for (i, instr) in program.iter().enumerate() {
             self.memory
                 .write(Self::PROGRAM_START + (i * 4) as u32, *instr)?;
         }
+
+        self.registers
+            .set(Register::PC, Self::PROGRAM_START + entry_point);
 
         Ok(self)
     }
@@ -50,17 +54,21 @@ impl Machine {
         self.registers = RegisterStore::default();
         self.registers.set(Register::PC, Self::PROGRAM_START);
         self.registers.set(Register::SP, Self::STACK_START);
+        self.registers.set(Register::BP, Self::STACK_START);
     }
 
     pub fn run(mut self, step_mode: bool) -> VMResult<Self> {
         self.memory
             .dump(Self::PROGRAM_START as usize..Self::PROGRAM_START as usize + 32);
         while !self.halt {
+            if step_mode {
+                println!("Press enter to continue...");
+                std::io::stdin().read_line(&mut String::new()).unwrap();
+            }
             self.step()?;
             if step_mode {
                 println!("{}", self.registers);
-                println!("Press enter to continue...");
-                std::io::stdin().read_line(&mut String::new()).unwrap();
+                self.dump_stack();
             }
         }
         Ok(self)
@@ -96,7 +104,7 @@ impl Machine {
             Instruction::LoadBool { dst, op } => self.load_bool(dst, op)?,
             Instruction::Imm { dst, value } => self.imm(dst, value),
             Instruction::Add { dst, lhs, rhs } => self.add(dst, lhs, rhs),
-            Instruction::Jump { cond, offset } => {
+            Instruction::Jump { cond, dst } => {
                 let cond_flags = self.registers.get(Register::Cond) as u8;
                 let cond_flags: ConditionFlag = cond_flags
                     .try_into()
@@ -114,10 +122,13 @@ impl Machine {
 
                 if can_jump {
                     let pc = self.registers.get(Register::PC);
-                    self.registers.set(
-                        Register::PC,
-                        (pc as i32 + sign_extend(*offset, 20) as i32) as u32,
-                    );
+                    let value = match dst {
+                        MemOffsetOrRegister::Register(reg) => self.registers.get(reg),
+                        MemOffsetOrRegister::MemOffset(lit) => {
+                            (pc as i32 + sign_extend(lit.offset, 20) as i32) as u32
+                        }
+                    };
+                    self.registers.set(Register::PC, value);
                     self.cycle_changed_pc = true;
                 }
             }
@@ -209,7 +220,7 @@ impl Machine {
     }
 
     pub fn dump_stack(&self) {
-        let end = self.registers.get(Register::SP);
+        let end = self.registers.get(Register::SP) + 64;
         let mut sp = Self::STACK_START;
         while sp < end {
             let val = self.memory.read(sp).unwrap();

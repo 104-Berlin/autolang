@@ -28,7 +28,7 @@ impl UnresolvedInstruction {
             UnresolvedInstruction::Jump { cond, offset } => match offset {
                 Unresolved::Resolved(offset) => Instruction::Jump {
                     cond: *cond,
-                    offset: *offset,
+                    dst: (*offset).into(),
                 },
                 Unresolved::Unresolved(label) => {
                     let label_addr = labels
@@ -38,7 +38,7 @@ impl UnresolvedInstruction {
                     let offset = label_addr.wrapping_sub(own_addr);
                     Instruction::Jump {
                         cond: *cond,
-                        offset: MemOffset::from(offset),
+                        dst: MemOffset::from(offset).into(),
                     }
                 }
             },

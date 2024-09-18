@@ -12,8 +12,9 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    pub fn compile(mut self, module: &Module) -> Result<[u32; 1024], miette::Error> {
+    pub fn compile(mut self, module: &Module) -> Result<([u32; 1024], u32), miette::Error> {
         module.build(&mut self.context)?;
+
         self.context.finish().map(|m| *m)
     }
 }

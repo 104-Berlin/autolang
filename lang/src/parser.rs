@@ -212,7 +212,7 @@ impl Parser<'_> {
             }
             _ => Err(UnexpectedToken {
                 found: value,
-                span: self.last_offset.into(),
+                span,
                 expected: "Expected expression".into(),
             }
             .into()),

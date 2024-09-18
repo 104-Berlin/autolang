@@ -4,6 +4,7 @@ pub mod arg20;
 pub mod jump_cond;
 pub mod logical_operator;
 pub mod mem_offset;
+pub mod mem_offset_or_register;
 pub mod register_or_literal;
 pub mod register_or_register_pointer;
 pub mod register_pointer;

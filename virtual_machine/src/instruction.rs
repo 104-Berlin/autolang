@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use args::{
     arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
-    mem_offset::MemOffset, register_or_literal::RegisterOrLiteral,
+    mem_offset_or_register::MemOffsetOrRegister, register_or_literal::RegisterOrLiteral,
     register_or_register_pointer::RegisterOrRegisterPointer, InstructionArg,
 };
 use reader::InstructionReader;
@@ -49,7 +49,7 @@ pub enum Instruction {
     },
     Jump {
         cond: JumpCondition,
-        offset: MemOffset,
+        dst: MemOffsetOrRegister,
     },
     Move {
         dst: RegisterOrRegisterPointer,
@@ -89,7 +89,7 @@ impl InstructionArg for Instruction {
             }),
             OpCode::Jump => Ok(Self::Jump {
                 cond: reader.read()?,
-                offset: reader.read()?,
+                dst: reader.read()?,
             }),
 
             OpCode::Compare => Ok(Instruction::Compare {
@@ -131,10 +131,10 @@ impl InstructionArg for Instruction {
             Self::Add { dst, lhs, rhs } => {
                 writer = writer.write(dst).write(lhs).write(rhs);
             }
-            Self::Jump { cond, offset } => {
+            Self::Jump { cond, dst } => {
                 // We have some unused bits here
                 // We need to write them, in order to skip to the correct bit for the offset
-                writer = writer.write(cond).write(offset);
+                writer = writer.write(cond).write(dst);
             }
             Self::Compare { lhs, rhs } => {
                 writer = writer.write(lhs).write(rhs);
@@ -162,7 +162,7 @@ impl Display for Instruction {
             Self::LoadBool { dst, op } => write!(f, "LoadBool {}, {:?}", dst, op),
             Self::Imm { dst, value } => write!(f, "Imm {}, {}", dst, value.0),
             Self::Add { dst, lhs, rhs } => write!(f, "Add {}, {}, {}", dst, lhs, rhs),
-            Self::Jump { cond, offset } => write!(f, "Jump {:?} {:?}", cond, offset),
+            Self::Jump { cond, dst } => write!(f, "Jump {:?} {:?}", cond, dst),
             Self::Compare { lhs, rhs } => write!(f, "Compare {}, {}", lhs, rhs),
             Self::Move { dst, src } => write!(f, "Move {:?} => {:?}", src, dst),
             Self::Push(reg) => write!(f, "Push {}", reg),

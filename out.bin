@@ -1,18 +1,18 @@
 Push BP
 Move Register(SP) => Register(BP)
-Imm RA1, 2
-Push RA1
-Move RegisterPointer(RegisterPointer { register: BP, offset: 0 }) => Register(RA1)
-Move Register(RA1) => Register(RA2)
-Imm RA1, 4
-Add RA1, RA2, RA1
-Push RA1
+Imm RA1, 1
+Move Register(RA1) => RegisterPointer(RegisterPointer { register: BP, offset: 0 })
 Pop BP
-Halt
-Halt
-Halt
-Halt
-Halt
+Move Register(BP) => Register(SP)
+Pop RS1
+Jump Always Register(RS1)
+Push BP
+Move Register(SP) => Register(BP)
+Push PC
+Pop BP
+Move Register(BP) => Register(SP)
+Pop RS1
+Jump Always Register(RS1)
 Halt
 Halt
 Halt

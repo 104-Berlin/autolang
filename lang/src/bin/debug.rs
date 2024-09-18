@@ -15,10 +15,10 @@ fn compile<'a>(
     step_mode: bool,
 ) -> Result<Machine, Error> {
     let module = Parser::new(input).parse_module()?;
-    let program = Compiler::default().compile(&module)?;
+    let (program, entry) = Compiler::default().compile(&module)?;
 
     Machine::default()
-        .load_program(&program)
+        .load_program(&program, entry)
         .into_diagnostic()
         .wrap_err("Loading Program")?
         .run(step_mode)
