@@ -65,9 +65,16 @@ fn compile<'a>(
 
     println!("Entry point: {:?}", entry);
     // Print the program as hex and 32bit bin
-    for i in 0..20 {
-        let data = program[i];
-        let instruction = Instruction::match_from_bytes(data).into_diagnostic()?;
+    let mut prog_iter = program.iter().enumerate();
+    loop {
+        let Some((i, data)) = prog_iter.next() else {
+            break;
+        };
+        if *data == 0 {
+            break;
+        }
+
+        let instruction = Instruction::match_from_bytes(*data).into_diagnostic()?;
         println!("{:02}: {1:08x} | {1:032b} | {2}", i, data, instruction);
     }
 

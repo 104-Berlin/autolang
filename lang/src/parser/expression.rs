@@ -405,18 +405,6 @@ impl Spanned<Expr> {
         var: &Spanned<String>,
         span: SourceSpan,
     ) -> ALResult<()> {
-        // We need to check if it is a local variable or a global variable
-        // fn test() {
-        //    let a = 10;
-        //    {
-        //        let b = a;
-        //    }
-        // }
-        //
-        // 0: BP
-        // 1: A
-        // 2: B
-
         match builder.find_var(var) {
             Some((VarLocation::Local(offset), _)) => {
                 println!("Found local variable at offset {}", offset);
