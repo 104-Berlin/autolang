@@ -1,7 +1,7 @@
-fn test() {
-    let a = 1;
+fn test(a: int) {
+    let b = a;
 }
 
 fn main() {
-    test();
+    test(32);
 }
