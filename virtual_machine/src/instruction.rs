@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use args::{
-    arg20::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
+    arg_n::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
     mem_offset_or_register::MemOffsetOrRegister, register_or_literal::RegisterOrLiteral,
     register_or_register_pointer::RegisterOrRegisterPointer, InstructionArg,
 };
@@ -168,5 +168,31 @@ impl Display for Instruction {
             Self::Push(reg) => write!(f, "Push {}", reg),
             Self::Pop(reg) => write!(f, "Pop {}", reg),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn jump_to_bytes() {
+        use super::*;
+        use args::jump_cond::JumpCondition;
+
+        // Should look like this
+        // 001001_000000_11111111111111010100
+
+        // 11111111111111111111111111010100
+        let offset = -44i32;
+
+        println!("Offset: {:b}", offset);
+
+        let instruction = Instruction::Jump {
+            cond: JumpCondition::Always,
+            dst: (offset as u32).into(),
+        };
+
+        let bytes = Instruction::match_to_bytes(instruction);
+
+        assert_eq!(bytes, 0b001001_000000_11111111111111010100);
     }
 }

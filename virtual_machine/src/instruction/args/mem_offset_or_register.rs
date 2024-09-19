@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
-use crate::{error::VMResult, machine::Machine, register::Register, sign_extend};
+use crate::{error::VMResult, register::Register};
 
-use super::{mem_offset::MemOffset, InstructionArg};
+use super::{arg_n::Arg18, InstructionArg};
 
-/// 22 Bit Register or Memory Offset. The first bit is used to determine if the value is a register or a memory offset
+/// 20 Bit Register or Memory Offset. The first bit is used to determine if the value is a register or a memory offset
 ///
 /// If the first bit is 0, then the value is a register
 ///
@@ -13,21 +13,21 @@ use super::{mem_offset::MemOffset, InstructionArg};
 /// The Literal is a 8 bit value
 ///
 /// ```text
-///  21  20 19                     0
+///  19  18 17                     0
 /// ┌────-─┬────────────────────────┐
-/// │  0   |      MEMORY_OFFSET     │
+/// │  00  |      MEMORY_OFFSET     │
 /// └────-─┴────────────────────────┘
 /// ```
 ///
 /// ```text
-///  21  20 19        14 13         0
+///  19  18 17        14 13         0
 /// ┌────-─┬────────────┬────────────┐
-/// │  1   |  REGISTER  |   UNUSED   │
+/// │  10  |  REGISTER  |   UNUSED   │
 /// └────-─┴────────────┴────────────┘
 /// ```
 #[derive(Debug)]
 pub enum MemOffsetOrRegister {
-    MemOffset(MemOffset),
+    MemOffset(Arg18),
     Register(Register),
 }
 
@@ -39,7 +39,7 @@ impl From<Register> for MemOffsetOrRegister {
 
 impl<M> From<M> for MemOffsetOrRegister
 where
-    M: Into<MemOffset>,
+    M: Into<Arg18>,
 {
     fn from(mem_offset: M) -> Self {
         Self::MemOffset(mem_offset.into())
@@ -50,13 +50,13 @@ impl Display for MemOffsetOrRegister {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Register(register) => write!(f, "{}", register),
-            Self::MemOffset(offset) => write!(f, "0x{:X}", offset.offset),
+            Self::MemOffset(offset) => write!(f, "0x{:X}", offset.0),
         }
     }
 }
 
 impl InstructionArg for MemOffsetOrRegister {
-    const BIT_SIZE: u32 = 22;
+    const BIT_SIZE: u32 = 20;
 
     fn match_from_bytes(data: u32) -> VMResult<Self>
     where
@@ -64,15 +64,15 @@ impl InstructionArg for MemOffsetOrRegister {
     {
         let is_literal = (data >> 9) & 0x1 != 0;
         if is_literal {
-            Ok(Self::MemOffset(MemOffset::match_from_bytes(data)?))
+            Ok(Self::MemOffset(Arg18::match_from_bytes(data)?))
         } else {
             Ok(Self::Register(Register::match_from_bytes(data)?))
         }
     }
     fn match_to_bytes(data: Self) -> u32 {
         match data {
-            Self::Register(register) => register as u32,
-            Self::MemOffset(offset) => 0x100000 | (offset.offset as u32),
+            Self::Register(register) => Register::match_to_bytes(register) as u32,
+            Self::MemOffset(offset) => 0x80000 | (offset.0 & ((1 << Self::BIT_SIZE) - 1)),
         }
     }
 }

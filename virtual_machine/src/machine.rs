@@ -4,7 +4,7 @@ use crate::instruction::args::mem_offset_or_register::MemOffsetOrRegister;
 use crate::instruction::args::register_or_register_pointer::RegisterOrRegisterPointer;
 use crate::instruction::{
     args::{
-        arg20::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral,
+        arg_n::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral,
         InstructionArg,
     },
     Instruction,
@@ -125,7 +125,7 @@ impl Machine {
                     let value = match dst {
                         MemOffsetOrRegister::Register(reg) => self.registers.get(reg),
                         MemOffsetOrRegister::MemOffset(lit) => {
-                            (pc as i32 + sign_extend(lit.offset, 20) as i32) as u32
+                            (pc as i32 + lit.sign_extend() as i32) as u32
                         }
                     };
                     self.registers.set(Register::PC, value);

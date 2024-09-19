@@ -1,12 +1,6 @@
 use std::fmt::Display;
 
-use virtual_machine::{
-    instruction::{
-        args::{jump_cond::JumpCondition, mem_offset::MemOffset},
-        Instruction,
-    },
-    register::Register,
-};
+use virtual_machine::{instruction::Instruction, register::Register};
 
 use crate::{
     compiler::compiler_context::{Buildable, CompilerContext},

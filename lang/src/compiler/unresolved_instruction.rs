@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use miette::miette;
 use virtual_machine::instruction::{
-    args::{jump_cond::JumpCondition, mem_offset::MemOffset},
+    args::{arg_n::Arg18, jump_cond::JumpCondition},
     Instruction,
 };
 
@@ -14,7 +14,7 @@ pub enum Unresolved<T> {
 pub enum UnresolvedInstruction {
     Jump {
         cond: JumpCondition,
-        offset: Unresolved<MemOffset>,
+        offset: Unresolved<u32>,
     },
 }
 
@@ -39,7 +39,7 @@ impl UnresolvedInstruction {
                     println!("Resolve jump {}", offset as i32);
                     Instruction::Jump {
                         cond: *cond,
-                        dst: MemOffset::from(offset).into(),
+                        dst: Arg18::from(offset).into(),
                     }
                 }
             },

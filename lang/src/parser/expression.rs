@@ -4,7 +4,7 @@ use miette::{miette, Context, LabeledSpan, SourceSpan};
 use virtual_machine::{
     instruction::{
         args::{
-            arg20::Arg20, jump_cond::JumpCondition, mem_offset::MemOffset,
+            arg_n::Arg20, jump_cond::JumpCondition,
             register_or_register_pointer::RegisterOrRegisterPointer,
             register_pointer::RegisterPointer,
         },
@@ -18,7 +18,7 @@ use crate::{
         compiler_context::{Buildable, CompilerContext, VarLocation},
         unresolved_instruction::{Unresolved, UnresolvedInstruction},
     },
-    prelude::{ArgumentDecl, FunctionDecl},
+    prelude::ArgumentDecl,
     spanned::{SpanExt, Spanned, WithSpan},
     tokenizer::literal::Literal,
     ALResult,
@@ -500,7 +500,7 @@ impl Spanned<Expr> {
                 .build_instruction(
                     Instruction::Imm {
                         dst: Register::RA1,
-                        value: Arg20(val as u32),
+                        value: Arg20::from(val as u32),
                     }
                     .with_span(literal.span),
                 )
@@ -511,7 +511,7 @@ impl Spanned<Expr> {
                 .build_instruction(
                     Instruction::Imm {
                         dst: Register::RA1,
-                        value: Arg20(if val { 1 } else { 0 }),
+                        value: Arg20::from(if val { 1 } else { 0 }),
                     }
                     .with_span(literal.span),
                 )
