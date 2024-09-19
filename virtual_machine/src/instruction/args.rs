@@ -7,10 +7,12 @@ pub mod mem_offset_or_register;
 pub mod register_or_literal;
 pub mod register_or_register_pointer;
 pub mod register_pointer;
+pub mod sys_call;
 pub mod unused;
 
 pub trait InstructionArg {
     const BIT_SIZE: u32;
+    const MASK: u32 = (1 << Self::BIT_SIZE) - 1;
 
     /// Match the instruction from the bytes
     ///

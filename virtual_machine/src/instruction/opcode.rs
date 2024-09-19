@@ -23,6 +23,8 @@ pub enum OpCode {
     LoadBool, // Load a boolean from the condition register to have a bool type
 
     Jump, // Jump to a location
+
+    SysCall, // System call
 }
 
 impl InstructionArg for OpCode {

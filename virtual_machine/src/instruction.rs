@@ -3,7 +3,7 @@ use std::fmt::Display;
 use args::{
     arg_n::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
     mem_offset_or_register::MemOffsetOrRegister, register_or_literal::RegisterOrLiteral,
-    register_or_register_pointer::RegisterOrRegisterPointer, InstructionArg,
+    register_or_register_pointer::RegisterOrRegisterPointer, sys_call::SysCall, InstructionArg,
 };
 use reader::InstructionReader;
 use writer::InstructionWriter;
@@ -58,6 +58,8 @@ pub enum Instruction {
 
     Push(RegisterOrLiteral),
     Pop(Register),
+
+    SysCall(SysCall),
 }
 
 impl InstructionArg for Instruction {
@@ -102,6 +104,7 @@ impl InstructionArg for Instruction {
             }),
             OpCode::Push => Ok(Instruction::Push(reader.read()?)),
             OpCode::Pop => Ok(Instruction::Pop(reader.read()?)),
+            OpCode::SysCall => Ok(Instruction::SysCall(reader.read()?)),
         }
     }
 
@@ -117,6 +120,7 @@ impl InstructionArg for Instruction {
             Self::Move { .. } => OpCode::Move,
             Self::Push(_) => OpCode::Push,
             Self::Pop(_) => OpCode::Pop,
+            Self::SysCall(_) => OpCode::SysCall,
         });
 
         match data {
@@ -148,6 +152,9 @@ impl InstructionArg for Instruction {
             Self::Pop(reg) => {
                 writer = writer.write(reg);
             }
+            Self::SysCall(value) => {
+                writer = writer.write(value);
+            }
         }
 
         writer.finish()
@@ -167,6 +174,7 @@ impl Display for Instruction {
             Self::Move { dst, src } => write!(f, "Move {:?} => {:?}", src, dst),
             Self::Push(reg) => write!(f, "Push {}", reg),
             Self::Pop(reg) => write!(f, "Pop {}", reg),
+            Self::SysCall(value) => write!(f, "SysCall {:?}", value),
         }
     }
 }

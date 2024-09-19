@@ -2,6 +2,7 @@ use crate::error::VMResult;
 use crate::instruction::args::logical_operator::LogicalOperator;
 use crate::instruction::args::mem_offset_or_register::MemOffsetOrRegister;
 use crate::instruction::args::register_or_register_pointer::RegisterOrRegisterPointer;
+use crate::instruction::args::sys_call::SysCall;
 use crate::instruction::{
     args::{
         arg_n::Arg20, jump_cond::JumpCondition, register_or_literal::RegisterOrLiteral,
@@ -58,8 +59,6 @@ impl Machine {
     }
 
     pub fn run(mut self, step_mode: bool) -> VMResult<Self> {
-        self.memory
-            .dump(Self::PROGRAM_START as usize..Self::PROGRAM_START as usize + 32);
         while !self.halt {
             if step_mode {
                 println!("Press enter to continue...");
@@ -155,6 +154,9 @@ impl Machine {
                 self.registers.set(reg, reg_val);
                 self.registers.set(Register::SP, sp - 4);
             }
+            Instruction::SysCall(code) => match code {
+                SysCall::SysFunc => todo!(),
+            },
         }
 
         Ok(())

@@ -8,8 +8,6 @@ use super::InstructionArg;
 pub struct ArgN<const N: u8>(pub u32);
 
 impl<const N: u8> ArgN<N> {
-    const MASK: u32 = (1 << Self::BIT_SIZE) - 1;
-
     pub fn sign_extend(&self) -> u32 {
         sign_extend(self.0, Self::BIT_SIZE)
     }
@@ -48,3 +46,4 @@ pub type Arg12 = ArgN<12>;
 pub type Arg16 = ArgN<16>;
 pub type Arg18 = ArgN<18>;
 pub type Arg20 = ArgN<20>;
+pub type Arg26 = ArgN<26>;
