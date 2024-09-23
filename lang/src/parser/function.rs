@@ -49,6 +49,13 @@ impl Buildable for Spanned<FunctionDecl> {
         let block = builder.append_block(Some(&self.proto.value.name));
         builder.block_insertion_point(block, self.span)?;
 
+        // We need to create a new scope for the function to store the arguments
+        // The offset must be offset from the new base pointer (BP)
+        builder.push_scope();
+        for (name, typ) in self.proto.arguments.value.iter() {
+            builder.build_function_arg(name, typ.value.clone())?;
+        }
+
         builder.build_instruction(Instruction::Push(Register::BP.into()).with_span(self.span))?;
 
         builder.build_instruction(
@@ -63,6 +70,7 @@ impl Buildable for Spanned<FunctionDecl> {
         self.body.build(builder)?;
 
         builder.build_return(self.span)?;
+        builder.pop_scope();
         Ok(().with_span(self.span))
     }
 }

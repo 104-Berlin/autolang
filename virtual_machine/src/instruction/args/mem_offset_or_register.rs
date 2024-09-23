@@ -37,21 +37,21 @@ impl From<Register> for MemOffsetOrRegister {
     }
 }
 
+impl Display for MemOffsetOrRegister {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Register(register) => write!(f, "{}", register),
+            Self::MemOffset(offset) => write!(f, "{}", offset.sign_extend() as i32),
+        }
+    }
+}
+
 impl<M> From<M> for MemOffsetOrRegister
 where
     M: Into<Arg18>,
 {
     fn from(mem_offset: M) -> Self {
         Self::MemOffset(mem_offset.into())
-    }
-}
-
-impl Display for MemOffsetOrRegister {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Register(register) => write!(f, "{}", register),
-            Self::MemOffset(offset) => write!(f, "0x{:X}", offset.0),
-        }
     }
 }
 

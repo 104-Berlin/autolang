@@ -538,6 +538,11 @@ impl Spanned<Expr> {
         callee: &Spanned<String>,
         args: &[Spanned<Expr>],
     ) -> ALResult<()> {
+        // Push next address to stack for returning back to the function
+        builder
+            .build_instruction(Instruction::Push(Register::PC.into()).with_span(callee.span.next()))
+            .wrap_err("Building Function Call")?;
+
         // We need to push the arguments to the stack
         for arg in args {
             arg.build(builder)?; // Result should be in RA1
@@ -545,11 +550,6 @@ impl Spanned<Expr> {
                 .build_instruction(Instruction::Push(Register::RA1.into()).with_span(arg.span))
                 .wrap_err("Building Function Call")?;
         }
-
-        // Push next address to stack for returning back to the function
-        builder
-            .build_instruction(Instruction::Push(Register::PC.into()).with_span(callee.span.next()))
-            .wrap_err("Building Function Call")?;
 
         builder.build_instruction_unresolved(
             UnresolvedInstruction::Jump {

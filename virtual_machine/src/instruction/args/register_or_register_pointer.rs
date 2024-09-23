@@ -4,6 +4,8 @@
 //! Used when you want to read from a specific address in memory.
 //! Mostly used by stack operations for functions calls and local variables.
 
+use std::fmt::Display;
+
 use crate::{error::VMResult, machine::Machine, register::Register};
 
 use super::{register_pointer::RegisterPointer, InstructionArg};
@@ -24,6 +26,15 @@ use super::{register_pointer::RegisterPointer, InstructionArg};
 pub enum RegisterOrRegisterPointer {
     Register(Register),
     RegisterPointer(RegisterPointer),
+}
+
+impl Display for RegisterOrRegisterPointer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Register(register) => write!(f, "{}", register),
+            Self::RegisterPointer(register_pointer) => write!(f, "{}", register_pointer),
+        }
+    }
 }
 
 impl RegisterOrRegisterPointer {

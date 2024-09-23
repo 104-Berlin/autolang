@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use miette::{miette, Context, IntoDiagnostic, LabeledSpan, SourceSpan};
+use miette::{ensure, miette, Context, IntoDiagnostic, LabeledSpan, SourceSpan};
 use virtual_machine::{
     instruction::{
         args::{
@@ -11,6 +11,7 @@ use virtual_machine::{
     },
     memory::Memory,
     register::Register,
+    sign_extend,
 };
 
 use crate::{
@@ -31,7 +32,7 @@ pub trait Buildable {
 }
 
 pub enum VarLocation {
-    Local(u32),  // Offset from the base pointer
+    Local(i32),  // Offset from the base pointer
     Global(u32), // Memory address
 }
 
@@ -165,8 +166,12 @@ impl CompilerContext {
                 "You are in the top level scope. You can't define a local variable here."
             ))?
             .push_variable((**sym).clone(), typ);
-        // Assert if the offset is bigger then 6 bits
-        assert!(offset < 0b111111);
+        // Assert if offset fits in 6 BITS
+        ensure!(
+            sign_extend(offset as u32 & 0b111111, 6) == offset as u32,
+            labels = vec![LabeledSpan::at(sym.span, "")],
+            "Offset to big for 6 bits"
+        );
 
         // We Push without moving the stack pointer
         // Can be dangerous if we have more then 64 / 4 = 16 local variables.
@@ -181,6 +186,27 @@ impl CompilerContext {
             }
             .with_span(sym.span),
         )?;
+
+        Ok(().with_span(sym.span))
+    }
+
+    pub fn build_function_arg(&mut self, sym: &Spanned<String>, typ: TypeID) -> ALResult<()> {
+        // Push the var to the symbol table
+        let offset = self
+            .symbol_table
+            .scopes
+            .as_mut()
+            .ok_or(miette!(
+                labels = vec![LabeledSpan::at(sym.span, ""),],
+                "You are in the top level scope. You can't define a local variable here."
+            ))?
+            .push_front_variable((**sym).clone(), typ);
+        // Assert if offset fits in 6 BITS
+        ensure!(
+            sign_extend(offset as u32 & 0b111111, 6) == offset as u32,
+            labels = vec![LabeledSpan::at(sym.span, "")],
+            "Offset to big for 6 bits"
+        );
 
         Ok(().with_span(sym.span))
     }

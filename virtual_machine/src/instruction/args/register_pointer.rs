@@ -1,3 +1,5 @@
+use std::fmt::{Debug, Display};
+
 use crate::{error::VMResult, machine::Machine, register::Register, sign_extend};
 
 use super::InstructionArg;
@@ -42,6 +44,17 @@ impl RegisterPointer {
     pub fn write(&self, machine: &mut Machine, value: u32) -> VMResult<()> {
         let address = machine.registers().get(self.register) as i32 + self.offset as i32;
         machine.memory_mut().write(address as u32, value)
+    }
+}
+
+impl Display for RegisterPointer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{} + ({})]",
+            self.register,
+            sign_extend(self.offset as u32, 6) as i8
+        )
     }
 }
 

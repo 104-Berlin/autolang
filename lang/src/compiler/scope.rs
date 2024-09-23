@@ -8,9 +8,10 @@ use crate::prelude::TypeID;
 #[derive(Debug, Default)]
 pub struct Scope {
     // Current Base pointer offset
-    current_offset: u32,
+    current_offset: i32,
+    front_offset: i32,
 
-    locals: HashMap<String, (u32, TypeID)>,
+    locals: HashMap<String, (i32, TypeID)>,
 
     parent: Option<Box<Scope>>,
 }
@@ -19,6 +20,7 @@ impl Scope {
     pub fn new() -> Self {
         Self {
             current_offset: 0,
+            front_offset: 4,
             locals: HashMap::new(),
             parent: None,
         }
@@ -27,6 +29,7 @@ impl Scope {
     pub fn new_child(self) -> Self {
         Self {
             current_offset: self.current_offset,
+            front_offset: self.front_offset,
             locals: HashMap::new(),
             parent: Some(Box::new(self)),
         }
@@ -43,14 +46,22 @@ impl Scope {
         }
     }
 
-    pub fn push_variable(&mut self, name: String, typ: TypeID) -> u32 {
+    pub fn push_variable(&mut self, name: String, typ: TypeID) -> i32 {
         let offset = self.current_offset;
         self.locals.insert(name, (offset, typ));
         self.current_offset += 4; // Advance 32 bits
         offset
     }
 
-    pub fn get(&self, name: &str) -> Option<(u32, TypeID)> {
+    pub fn push_front_variable(&mut self, name: String, typ: TypeID) -> i32 {
+        let offset = -self.front_offset;
+
+        self.locals.insert(name, (offset, typ));
+        self.front_offset += 4; // Advance 32 bits
+        offset
+    }
+
+    pub fn get(&self, name: &str) -> Option<(i32, TypeID)> {
         if let Some(offset) = self.locals.get(name) {
             return Some((offset.0, offset.1.clone()));
         }
