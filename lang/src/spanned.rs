@@ -57,10 +57,22 @@ impl SpanExt for SourceSpan {
     }
 }
 
-impl Deref for Spanned<String> {
-    type Target = str;
+impl<T> Deref for Spanned<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
         &self.value
+    }
+}
+
+pub trait WithSpan {
+    fn with_span(self, span: SourceSpan) -> Spanned<Self>
+    where
+        Self: Sized;
+}
+
+impl<T> WithSpan for T {
+    fn with_span(self, span: SourceSpan) -> Spanned<Self> {
+        Spanned { span, value: self }
     }
 }

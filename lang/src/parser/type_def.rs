@@ -12,6 +12,8 @@ pub enum TypeID {
     Void,
 
     User(String),
+
+    Function(Vec<TypeID>, Box<TypeID>),
 }
 
 impl TypeID {
@@ -36,6 +38,16 @@ impl Display for TypeID {
             TypeID::Bool => write!(f, "bool"),
             TypeID::Void => write!(f, "void"),
             TypeID::User(name) => write!(f, "{}", name),
+            TypeID::Function(args, ret) => {
+                write!(f, "(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg)?;
+                }
+                write!(f, ") -> {}", ret)
+            }
         }
     }
 }

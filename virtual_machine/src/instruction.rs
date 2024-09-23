@@ -1,114 +1,206 @@
-use crate::{
-    error::{VMError, VMResult},
-    opcode::OpCode,
-    register::Register,
-    sign_extend, Machine,
+use std::fmt::Display;
+
+use args::{
+    arg_n::Arg20, jump_cond::JumpCondition, logical_operator::LogicalOperator,
+    mem_offset_or_register::MemOffsetOrRegister, register_or_literal::RegisterOrLiteral,
+    register_or_register_pointer::RegisterOrRegisterPointer, sys_call::SysCall, InstructionArg,
 };
+use reader::InstructionReader;
+use writer::InstructionWriter;
 
-pub trait InstructionPart {
-    type Output;
+use crate::{error::VMResult, register::Register};
+use opcode::OpCode;
 
-    const BIT_SIZE: u32;
-
-    /// Match the instruction from the bytes
-    /// The bit_offset is used to skip the bits that are not part of the instruction
-    /// We are cutting all the bits that are not part of the instruction and put the instruction in the first bits
-    fn match_from_bytes(data: u32) -> VMResult<Self::Output>;
-
-    /// Match the instruction to the bytes
-    /// This is used to convert the instruction back to the bytes
-    /// The data should be on the most right side with BIT_SIZE bits
-    fn match_to_bytes(data: Self::Output) -> u32;
-
-    fn from_instruction(instruction: u32, bit_offset: u32) -> VMResult<Self::Output> {
-        if bit_offset + Self::BIT_SIZE > 32 {
-            return Err(VMError::FailedParsingInstruction(instruction));
-        }
-        let offset = 32 - (Self::BIT_SIZE + bit_offset);
-        let code = (instruction >> offset) & ((1 << Self::BIT_SIZE) - 1);
-
-        Self::match_from_bytes(code)
-    }
-
-    fn into_instruction(instruction: &mut u32, bit_offset: u32, data: Self::Output) {
-        *instruction |= Self::match_to_bytes(data) << (32 - (Self::BIT_SIZE + bit_offset));
-    }
-}
-
-pub struct InstructionReader {
-    instruction: u32,
-    bit_offset: u32,
-}
-
-impl InstructionReader {
-    pub fn new(instruction: u32) -> Self {
-        Self {
-            instruction,
-            bit_offset: 0,
-        }
-    }
-
-    pub fn read<T: InstructionPart>(&mut self) -> VMResult<T::Output> {
-        let result = T::from_instruction(self.instruction, self.bit_offset)?;
-        self.bit_offset += T::BIT_SIZE;
-        Ok(result)
-    }
-}
-
-pub struct InstructionWriter {
-    instruction: u32,
-    bit_offset: u32,
-}
-
-impl InstructionWriter {
-    pub fn new(op_code: OpCode) -> Self {
-        Self {
-            instruction: 0,
-            bit_offset: 0,
-        }
-        .write::<OpCode>(op_code)
-    }
-
-    pub fn write<T: InstructionPart>(mut self, data: T::Output) -> Self {
-        T::into_instruction(&mut self.instruction, self.bit_offset, data);
-        self.bit_offset += T::BIT_SIZE;
-        self
-    }
-
-    pub fn finish(self) -> u32 {
-        self.instruction
-    }
-}
-
-pub struct Arg20;
-
-impl InstructionPart for Arg20 {
-    type Output = u32;
-    const BIT_SIZE: u32 = 20;
-
-    fn match_to_bytes(data: Self::Output) -> u32 {
-        data & 0xF_FFFF
-    }
-
-    fn match_from_bytes(data: u32) -> VMResult<Self::Output> {
-        Ok(data & 0xF_FFFF)
-    }
-}
+pub mod args;
+pub mod opcode;
+pub mod reader;
+pub mod writer;
 
 /// ```text
-/// 31            26 25       20 19                                0
-/// ┌───────────────┬───────────┬───────────────────────────────────┐
-/// │   0b00000001  │    REG    │               VALUE               │
-/// └───────────────┴───────────┴───────────────────────────────────┘
+///  31      26 25         20 19     0
+/// ┌──────────┬─────────────┬────────┐
+/// │  OPCODE  | REGISTER-A? |  REST  │
+/// └──────────┴─────────────┴────────┘
 /// ```
-pub fn load(reader: &mut InstructionReader, vm: &mut Machine) -> VMResult<()> {
-    let register = reader.read::<Register>()?;
-    let value = sign_extend(reader.read::<Arg20>()?, 20);
 
-    let ip = vm.registers().get(Register::IP);
-    let addr = vm.memory.read((ip as u64 + value as u64) as u32)?;
+#[derive(Debug)]
+pub enum Instruction {
+    Halt,
+    Nop,
+    // This loads a bool from the condition register
+    // This seems to be a bit of waste, but wanted to get it in for now
+    // Maybe it works fine
+    LoadBool {
+        dst: Register,
+        op: LogicalOperator,
+    },
+    Imm {
+        dst: Register,
+        value: Arg20,
+    },
+    Add {
+        dst: Register,
+        lhs: RegisterOrLiteral,
+        rhs: RegisterOrLiteral,
+    },
+    Compare {
+        lhs: RegisterOrLiteral,
+        rhs: RegisterOrLiteral,
+    },
+    Jump {
+        cond: JumpCondition,
+        dst: MemOffsetOrRegister,
+    },
+    Move {
+        dst: RegisterOrRegisterPointer,
+        src: RegisterOrRegisterPointer,
+    },
 
-    vm.registers_mut().set(register, addr);
+    Push(RegisterOrLiteral),
+    Pop(Register),
 
-    Ok(())
+    SysCall(SysCall),
+}
+
+impl InstructionArg for Instruction {
+    const BIT_SIZE: u32 = 32;
+
+    fn match_from_bytes(data: u32) -> VMResult<Self>
+    where
+        Self: Sized,
+    {
+        let mut reader = InstructionReader::new(data);
+
+        let op_code: OpCode = reader.read()?;
+
+        match op_code {
+            OpCode::Halt => Ok(Self::Halt),
+            OpCode::Nop => Ok(Self::Nop),
+            OpCode::LoadBool => Ok(Self::LoadBool {
+                dst: reader.read()?,
+                op: reader.read()?,
+            }),
+            OpCode::Imm => Ok(Self::Imm {
+                dst: reader.read()?,
+                value: reader.read()?,
+            }),
+            OpCode::Add => Ok(Self::Add {
+                dst: reader.read()?,
+                lhs: reader.read()?,
+                rhs: reader.read()?,
+            }),
+            OpCode::Jump => Ok(Self::Jump {
+                cond: reader.read()?,
+                dst: reader.read()?,
+            }),
+
+            OpCode::Compare => Ok(Instruction::Compare {
+                lhs: reader.read()?,
+                rhs: reader.read()?,
+            }),
+            OpCode::Move => Ok(Instruction::Move {
+                dst: reader.read()?,
+                src: reader.read()?,
+            }),
+            OpCode::Push => Ok(Instruction::Push(reader.read()?)),
+            OpCode::Pop => Ok(Instruction::Pop(reader.read()?)),
+            OpCode::SysCall => Ok(Instruction::SysCall(reader.read()?)),
+        }
+    }
+
+    fn match_to_bytes(data: Self) -> u32 {
+        let mut writer = InstructionWriter::new(match data {
+            Self::Halt => OpCode::Halt,
+            Self::Nop => OpCode::Nop,
+            Self::LoadBool { .. } => OpCode::LoadBool,
+            Self::Imm { .. } => OpCode::Imm,
+            Self::Add { .. } => OpCode::Add,
+            Self::Jump { .. } => OpCode::Jump,
+            Self::Compare { .. } => OpCode::Compare,
+            Self::Move { .. } => OpCode::Move,
+            Self::Push(_) => OpCode::Push,
+            Self::Pop(_) => OpCode::Pop,
+            Self::SysCall(_) => OpCode::SysCall,
+        });
+
+        match data {
+            Self::Halt => (),
+            Self::Nop => (),
+            Self::LoadBool { dst, op } => {
+                writer = writer.write(dst).write(op);
+            }
+            Self::Imm { dst, value } => {
+                writer = writer.write(dst).write(value);
+            }
+            Self::Add { dst, lhs, rhs } => {
+                writer = writer.write(dst).write(lhs).write(rhs);
+            }
+            Self::Jump { cond, dst } => {
+                // We have some unused bits here
+                // We need to write them, in order to skip to the correct bit for the offset
+                writer = writer.write(cond).write(dst);
+            }
+            Self::Compare { lhs, rhs } => {
+                writer = writer.write(lhs).write(rhs);
+            }
+            Self::Move { dst, src } => {
+                writer = writer.write(dst).write(src);
+            }
+            Self::Push(reg) => {
+                writer = writer.write(reg);
+            }
+            Self::Pop(reg) => {
+                writer = writer.write(reg);
+            }
+            Self::SysCall(value) => {
+                writer = writer.write(value);
+            }
+        }
+
+        writer.finish()
+    }
+}
+
+impl Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Halt => write!(f, "Halt"),
+            Self::Nop => write!(f, "Nop"),
+            Self::LoadBool { dst, op } => write!(f, "LoadBool {}, {:?}", dst, op),
+            Self::Imm { dst, value } => write!(f, "Imm {}, {}", dst, value.0),
+            Self::Add { dst, lhs, rhs } => write!(f, "Add {}, {}, {}", dst, lhs, rhs),
+            Self::Jump { cond, dst } => write!(f, "Jump {:?} {}", cond, dst),
+            Self::Compare { lhs, rhs } => write!(f, "Compare {}, {}", lhs, rhs),
+            Self::Move { dst, src } => write!(f, "Move {} => {}", src, dst),
+            Self::Push(reg) => write!(f, "Push {}", reg),
+            Self::Pop(reg) => write!(f, "Pop {}", reg),
+            Self::SysCall(value) => write!(f, "SysCall {:?}", value),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn jump_to_bytes() {
+        use super::*;
+        use args::jump_cond::JumpCondition;
+
+        // Should look like this
+        // 001001_000000_11111111111111010100
+
+        // 11111111111111111111111111010100
+        let offset = -44i32;
+
+        println!("Offset: {:b}", offset);
+
+        let instruction = Instruction::Jump {
+            cond: JumpCondition::Always,
+            dst: (offset as u32).into(),
+        };
+
+        let bytes = Instruction::match_to_bytes(instruction);
+
+        assert_eq!(bytes, 0b001001_000000_11111111111111010100);
+    }
 }

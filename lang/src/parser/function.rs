@@ -1,6 +1,12 @@
 use std::fmt::Display;
 
-use crate::spanned::Spanned;
+use virtual_machine::{instruction::Instruction, register::Register};
+
+use crate::{
+    compiler::compiler_context::{Buildable, CompilerContext},
+    spanned::{Spanned, WithSpan},
+    ALResult,
+};
 
 use super::{expression::Expr, type_def::TypeID};
 
@@ -35,5 +41,36 @@ impl Display for FunctionProto {
 impl Display for FunctionDecl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {{\n{}\n}}", self.proto.value, self.body.value)
+    }
+}
+
+impl Buildable for Spanned<FunctionDecl> {
+    fn build(&self, builder: &mut CompilerContext) -> ALResult<()> {
+        let block = builder.append_block(Some(&self.proto.value.name));
+        builder.block_insertion_point(block, self.span)?;
+
+        // We need to create a new scope for the function to store the arguments
+        // The offset must be offset from the new base pointer (BP)
+        builder.push_scope();
+        for (name, typ) in self.proto.arguments.value.iter() {
+            builder.build_function_arg(name, typ.value.clone())?;
+        }
+
+        builder.build_instruction(Instruction::Push(Register::BP.into()).with_span(self.span))?;
+
+        builder.build_instruction(
+            Instruction::Move {
+                // SP -> BP
+                src: Register::SP.into(),
+                dst: Register::BP.into(),
+            }
+            .with_span(self.span),
+        )?;
+
+        self.body.build(builder)?;
+
+        builder.build_return(self.span)?;
+        builder.pop_scope();
+        Ok(().with_span(self.span))
     }
 }

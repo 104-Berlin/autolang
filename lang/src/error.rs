@@ -1,13 +1,26 @@
 use std::fmt::Display;
 
-use miette::{Diagnostic, SourceSpan};
+use miette::{miette, Diagnostic, SourceSpan};
 use thiserror::Error;
+use virtual_machine::error::VMError;
 
 use crate::{
-    execution::value::Value,
     parser::{binary_expression::BinaryOperator, type_def::TypeID},
     tokenizer::token::Token,
 };
+
+pub trait VMToMietteError<T> {
+    fn to_miette_error(self) -> Result<T, miette::Error>;
+}
+
+impl<T> VMToMietteError<T> for Result<T, VMError> {
+    fn to_miette_error(self) -> Result<T, miette::Error> {
+        match self {
+            Ok(value) => Ok(value),
+            Err(err) => Err(miette!("{}", err)),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum ExpectedToken {
@@ -91,5 +104,5 @@ pub enum ControllFlow {
     #[error("Break statement outside of loop")]
     Break,
     #[error("Return statement outside of function")]
-    Return(Value),
+    Return,
 }

@@ -1,6 +1,10 @@
+use miette::SourceSpan;
+
 use crate::{
+    compiler::compiler_context::{Buildable, CompilerContext},
     parser::{function::FunctionDecl, structs::Struct},
-    spanned::Spanned,
+    spanned::{SpanExt, Spanned, WithSpan},
+    ALResult,
 };
 
 pub struct Module {
@@ -36,5 +40,25 @@ impl Module {
 
     pub fn structs(&self) -> &[(Spanned<String>, Spanned<Struct>)] {
         &self.structs
+    }
+}
+
+impl Buildable for Module {
+    fn build(&self, builder: &mut CompilerContext) -> ALResult<()> {
+        let mut span: Option<SourceSpan> = None;
+
+        for func in self.functions() {
+            func.build(builder)?;
+            match span {
+                Some(s) => {
+                    span = Some(s.union(&func.span));
+                }
+                None => {
+                    span = Some(func.span);
+                }
+            }
+        }
+
+        Ok(().with_span(span.expect("Empty module")))
     }
 }

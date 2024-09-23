@@ -18,4 +18,7 @@ pub enum VMError {
 
     #[error("Invalid register {0:X}")]
     InvalidRegister(u8),
+
+    #[error("Label not found '{0}'")]
+    LabelNotFound(String),
 }

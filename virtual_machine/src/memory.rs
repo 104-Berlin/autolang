@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::error::{VMError, VMResult};
 
 /// For byte memory trait.
@@ -6,52 +8,104 @@ pub trait Memory {
     fn read(&self, address: u32) -> VMResult<u32>;
     fn write(&mut self, address: u32, value: u32) -> VMResult<()>;
 
-    fn read1(&self, address: u32, byte: u8) -> VMResult<u8> {
-        if byte >= 4 {
-            return Err(VMError::FailedToReadMemory(address));
-        }
+    fn read1(&self, address: u32) -> VMResult<u8> {
+        let byte = address % 4;
+        let address = address - byte;
+
         let value = self.read(address)?;
         let shift = byte * 8;
+
         Ok((value >> shift) as u8)
     }
 
-    fn write1(&mut self, address: u32, byte: u8, value: u8) -> VMResult<()> {
-        if byte >= 4 {
-            return Err(VMError::FailedToWriteMemory(address));
-        }
+    fn write1(&mut self, address: u32, value: u8) -> VMResult<()> {
+        let byte = address % 4;
+        let address = address - byte;
+
         let shift = byte * 8;
         let mask = 0xFF << shift;
+
         let value = (value as u32) << shift;
         let old_value = self.read(address)?;
+
         self.write(address, (old_value & !mask) | (value & mask))
     }
 
-    fn read2(&self, address: u32, half: u8) -> VMResult<u16> {
-        if half >= 2 {
-            return Err(VMError::FailedToReadMemory(address));
+    fn read2(&self, address: u32) -> VMResult<u16> {
+        let byte = address % 4;
+        let address = address - byte;
+
+        // In case we are reading the last byte of the memory we need to make two call to self.read
+        match byte {
+            3 => {
+                let low = self.read(address)?;
+                let high = self.read(address + 4)?;
+                Ok(((low << 8) | (high >> 24) & 0xff) as u16)
+            }
+            _ => {
+                let value = self.read(address)?;
+                let shift = byte * 8;
+                Ok((value >> shift) as u16)
+            }
         }
-        let value = self.read(address)?;
-        let shift = half * 16;
-        Ok((value >> shift) as u16)
     }
 
-    fn write2(&mut self, address: u32, half: u8, value: u16) -> VMResult<()> {
-        if half >= 2 {
-            return Err(VMError::FailedToWriteMemory(address));
+    fn write2(&mut self, address: u32, value: u16) -> VMResult<()> {
+        let byte = address % 4;
+        let address = address - byte;
+
+        match byte {
+            3 => {
+                let low = self.read(address)?;
+                let high = self.read(address + 4)?;
+                let low_value = 0xffffff00 & low;
+                let high_value = 0x00ffffff & high;
+                let low_value = low_value | ((value as u32) >> 8);
+                let high_value = high_value | ((value as u32) << 24);
+                self.write(address, low_value)
+                    .and_then(|_| self.write(address + 4, high_value))
+            }
+            _ => {
+                let shift = byte * 8;
+                let mask = 0xFFFF << shift;
+                let value = (value as u32) << shift;
+                let old_value = self.read(address)?;
+                self.write(address, (old_value & !mask) | (value & mask))
+            }
         }
-        let shift = half * 16;
-        let mask = 0xFFFF << shift;
-        let value = (value as u32) << shift;
-        let old_value = self.read(address)?;
-        self.write(address, (old_value & !mask) | (value & mask))
     }
 
     fn read4(&self, address: u32) -> VMResult<u32> {
-        self.read(address)
+        let bytes = address % 4;
+        let address = address - bytes;
+        match bytes {
+            0 => self.read(address),
+            _ => {
+                let low = self.read(address)? as u64;
+                let high = self.read(address + 4)? as u64;
+                let shift = bytes * 8;
+                Ok(((high << (32 - shift)) | (low >> shift)) as u32)
+            }
+        }
     }
 
     fn write4(&mut self, address: u32, value: u32) -> VMResult<()> {
-        self.write(address, value)
+        let bytes = address % 4;
+        let address = address - bytes;
+        match bytes {
+            0 => self.write(address, value),
+            _ => {
+                let low = self.read(address)? as u64;
+                let high = self.read(address + 4)? as u64;
+                let shift = bytes * 8;
+                let mask = 0xFFFFFFFF << shift;
+                let value = (value as u64) << shift;
+                let low = (low & !mask) | (value & mask);
+                let high = (high & !(0xFFFFFFFF << (32 - shift))) | (value >> (32 - shift));
+                self.write(address, low as u32)
+                    .and_then(|_| self.write(address + 4, high as u32))
+            }
+        }
     }
 
     fn read8(&self, address: u32) -> VMResult<u64> {
@@ -64,49 +118,42 @@ pub trait Memory {
         self.write4(address, value as u32)?;
         self.write4(address + 4, (value >> 32) as u32)
     }
+
+    fn dump(&self, range: Range<usize>) {
+        let size = range.end - range.start;
+        let size = size as u32 / 4;
+        let start = range.start as u32;
+
+        let range: Range<u32> = 0..size;
+        for i in range {
+            match self.read(start + (i * 4)) {
+                Ok(value) => println!("{:08x}: {:08x}", i, value),
+                Err(_) => break,
+            }
+        }
+    }
 }
 
-impl Memory for Vec<u32> {
+impl<T: AsRef<[u32]> + AsMut<[u32]>> Memory for T {
     fn read(&self, address: u32) -> VMResult<u32> {
-        self.get(address as usize)
+        assert_eq!(address % 4, 0);
+        let address = address / 4;
+
+        self.as_ref()
+            .get(address as usize)
             .copied()
             .ok_or(VMError::FailedToReadMemory(address))
     }
 
     fn write(&mut self, address: u32, value: u32) -> VMResult<()> {
-        if address as usize >= self.len() {
+        assert_eq!(address % 4, 0);
+        let address = address / 4;
+
+        if address as usize >= self.as_ref().len() {
             return Err(VMError::FailedToWriteMemory(address));
         }
-        self[address as usize] = value;
-        Ok(())
-    }
-}
-
-impl Memory for Vec<u8> {
-    fn read(&self, address: u32) -> VMResult<u32> {
-        let address = (address * 4) as usize;
-        let value = self
-            .get(address..address + 4)
-            .ok_or(VMError::FailedToReadMemory(address as u32))?;
-        Ok(u32::from_le_bytes(value.try_into().unwrap()))
-    }
-
-    fn write(&mut self, address: u32, value: u32) -> VMResult<()> {
-        let address = (address * 4) as usize;
-        self[address..address + 4].copy_from_slice(&value.to_le_bytes());
-        Ok(())
-    }
-
-    fn read1(&self, address: u32, byte: u8) -> VMResult<u8> {
-        let address = (address * 4 + byte as u32) as usize;
-        self.get(address)
-            .copied()
-            .ok_or(VMError::FailedToReadMemory(address as u32))
-    }
-
-    fn write1(&mut self, address: u32, byte: u8, value: u8) -> VMResult<()> {
-        let address = (address * 4 + byte as u32) as usize;
-        self[address] = value;
+        let slice = self.as_mut();
+        slice[address as usize] = value;
         Ok(())
     }
 }
